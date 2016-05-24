@@ -30,8 +30,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.InputStream;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
 
 @Path("/gggg")
 public class OpenstackConfig extends AbstractWebResource {
@@ -51,7 +49,7 @@ public class OpenstackConfig extends AbstractWebResource {
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public Response listVirtualMachines() {
+    public Response listOpenstackNode() {
         log.info("hahahahahhahhahahahahahahhahahahhahahah");
         return Response.status(Response.Status.OK).entity("haha").build();
     }
@@ -59,7 +57,7 @@ public class OpenstackConfig extends AbstractWebResource {
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response createVirtualMachine(InputStream input) {
+    public Response createOpenstackNode(InputStream input) {
         try{
             ObjectMapper mapper = new ObjectMapper();
             JsonNode cfg = mapper.readTree(input);
@@ -126,50 +124,5 @@ public class OpenstackConfig extends AbstractWebResource {
         VnetManagerService vnetManagerService = getService(VnetManagerService.class);
         vnetManagerService.addOpenstackNode(openstackNode);
         return true;
-    }
-
-//    public Set<OpenstackNodeConfig> openstackNodes() {
-//        return nodes;
-//    }
-
-
-    public static class OpenstackNodeConfig {
-        private final String hostName;
-        private final IpAddress publicNetworkIp;
-        private final IpAddress manageNetworkIP;
-        private final IpAddress dataNetworkIP;
-        private final Tunnel.Type tunnelType;
-        private final OpenstackNode.Type nodeType;
-
-        public OpenstackNodeConfig(String hostName, IpAddress publicNetworkIp,
-                                   IpAddress manageNetworkIP, IpAddress dataNetworkIP,
-                             Tunnel.Type tunnelType, OpenstackNode.Type nodeType) {
-            this.hostName = checkNotNull(hostName);
-            this.publicNetworkIp = checkNotNull(publicNetworkIp);
-            this.manageNetworkIP = checkNotNull(manageNetworkIP);
-            this.dataNetworkIP = checkNotNull(dataNetworkIP);
-            this.tunnelType = checkNotNull(tunnelType);
-            this.nodeType = checkNotNull(nodeType);
-        }
-
-        public String hostName() {
-            return hostName;
-        }
-
-        public IpAddress getPublicNetworkIp() {
-            return publicNetworkIp;
-        }
-
-        public IpAddress getManageNetworkIP() {
-            return manageNetworkIP;
-        }
-
-        public IpAddress getDataNetworkIP() {
-            return dataNetworkIP;
-        }
-
-        public Tunnel.Type getTunnelType() { return tunnelType; }
-
-        public OpenstackNode.Type getNodeType() { return nodeType; }
     }
 }

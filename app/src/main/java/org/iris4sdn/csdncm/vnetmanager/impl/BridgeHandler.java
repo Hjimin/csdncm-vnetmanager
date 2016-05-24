@@ -17,6 +17,7 @@ package org.iris4sdn.csdncm.vnetmanager.impl;
 
 
 import org.iris4sdn.csdncm.tunnelmanager.TunnelManagerService;
+import org.iris4sdn.csdncm.vnetmanager.Gateway;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onlab.osgi.ServiceDirectory;
 import org.onlab.packet.IpAddress;
@@ -77,11 +78,6 @@ public final class BridgeHandler {
         this.configService = serviceDirectory.get(NetworkConfigService.class);
         this.tunnelManagerService = serviceDirectory.get(TunnelManagerService.class);
         this.controller = serviceDirectory.get(OvsdbController.class);
-//        this.deviceService = DefaultServiceDirectory.getService(DeviceService.class);
-//        this.driverService = DefaultServiceDirectory.getService(DriverService.class);
-//        this.configService = DefaultServiceDirectory.getService(NetworkConfigService.class);
-//        this.tunnelManagerService = DefaultServiceDirectory.getService(TunnelManagerService.class);
-//        this.controller = DefaultServiceDirectory.getService(OvsdbController.class);
     }
 
     public static BridgeHandler bridgeHandler() {
@@ -215,6 +211,50 @@ public final class BridgeHandler {
 
         // Save tunnel port which mapped to Openstack node otherside.
         node.addTunnelPortNumber(gateway.id(), port);
+        node.setGatewayTunnelPortNumber(port);
+        node.applyState(GATEWAY_CREATED);
+
+        log.info("Tunnel from " + node.getDataNetworkIp() + " to "
+                + gateway.getDataNetworkIp() + " created" );
+    }
+
+    public void createGatewayTunnel(OpenstackNode node, Gateway gateway) {
+//        if (node.getState().contains(GATEWAY_CREATED)) {
+//            log.info("Gateway already created at {}", node.id());
+//            return ;
+//        }
+
+        DeviceId deviceId = node.getControllerId();
+        IpAddress srcIpAddress = node.getDataNetworkIp();
+        IpAddress dstIpAddress = gateway.getDataNetworkIp();
+
+        tunnelManagerService.createTunnel(deviceId, srcIpAddress, dstIpAddress);
+
+        PortNumber port = null;
+
+        for (int i = 0; i < 10; i++) {
+            port = getPortNumber(deviceId, dstIpAddress.toString());
+            if (port == null) {
+                try {
+                    // Need to wait for synchronising
+                    Thread.sleep(500);
+                } catch (InterruptedException exeption) {
+                    log.warn("Interrupted while waiting to get bridge");
+                    Thread.currentThread().interrupt();
+                }
+            } else  {
+                break;
+            }
+        }
+
+        if (port == null) {
+            log.error("Tunnel create failed at {}", node.id());
+            return ;
+        }
+
+        // Save tunnel port which mapped to Openstack node otherside.
+        //node.addTunnelPortNumber(gateway.id(), port);
+        gateway.setGatewayPortNumber(port);
         node.setGatewayTunnelPortNumber(port);
         node.applyState(GATEWAY_CREATED);
 

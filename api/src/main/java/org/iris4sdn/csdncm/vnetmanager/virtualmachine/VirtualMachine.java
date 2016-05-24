@@ -20,4 +20,5 @@ public interface VirtualMachine {
     DeviceId deviceId();
 
     MacAddress macAddress();
+
 }

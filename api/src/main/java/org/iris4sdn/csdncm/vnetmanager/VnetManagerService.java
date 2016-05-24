@@ -6,6 +6,8 @@ import org.onosproject.vtnrsc.VirtualPortId;
 public interface VnetManagerService {
 //    String VNETMANAGER_APP_ID = "org.onosproject.vnetmanager";
 //
+    void addGateway(Gateway gateway);
+
     void addOpenstackNode(OpenstackNode node);
 
     void deleteOpenstackNode(OpenstackNode node);

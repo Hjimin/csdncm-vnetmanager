@@ -1,3 +1,5 @@
+app/target/*
+api/target/*
 target/*
 
 *.iml

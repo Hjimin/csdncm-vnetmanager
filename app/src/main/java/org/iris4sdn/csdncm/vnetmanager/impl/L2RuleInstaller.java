@@ -43,6 +43,7 @@ public class L2RuleInstaller {
     private static final int DROP_FLOW_PRIORITY = 45000;
     private static final int L2_CLASSIFIER_PRIORITY = 50000;
     private static final int DEFAULT_PRIORITY = 50000;
+    private static final int ARP_DEFAULT_PRIORITY = 55000;
 
     private L2RuleInstaller(ApplicationId appId) {
         this.appId = checkNotNull(appId, "ApplicationId can not be null");
@@ -115,6 +116,55 @@ public class L2RuleInstaller {
                 .fromApp(appId).makePermanent().withFlag(ForwardingObjective.Flag.VERSATILE)
                 .withPriority(DEFAULT_PRIORITY);
 
+        if (type.equals(Objective.Operation.ADD)) {
+            flowObjectiveService.forward(deviceId, objective.add());
+        } else {
+            flowObjectiveService.forward(deviceId, objective.remove());
+        }
+    }
+
+    public void programArpClassifier(DeviceId deviceId, IpAddress SrcIp,
+                                     SegmentationId actionVni,
+                                     Objective.Operation type) {
+        log.info("Program ARP classifier rules");
+
+        TrafficSelector selector = DefaultTrafficSelector.builder()
+                .matchEthType(Ethernet.TYPE_ARP)
+                .matchArpSpa(Ip4Address.valueOf(SrcIp.toString()))
+                .build();
+
+        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+                .setTunnelId(Long.parseLong(actionVni.segmentationId()))
+                .build();
+
+        ForwardingObjective.Builder objective = DefaultForwardingObjective
+                .builder().withTreatment(treatment).withSelector(selector)
+                .fromApp(appId).withFlag(ForwardingObjective.Flag.SPECIFIC)
+                .withPriority(65004);
+        if (type.equals(Objective.Operation.ADD)) {
+            flowObjectiveService.forward(deviceId, objective.add());
+        } else {
+            flowObjectiveService.forward(deviceId, objective.remove());
+        }
+    }
+
+    public void programGatewayArp (DeviceId deviceId,
+             SegmentationId segmentationId, MacAddress srcMac,
+             Objective.Operation type) {
+        log.info("Program flow toward local VMs");
+        TrafficSelector selector = DefaultTrafficSelector.builder()
+                .matchEthType(Ethernet.TYPE_ARP).matchArpSha(srcMac).add(Criteria.matchTunnelId(Long
+                        .parseLong(segmentationId.toString())))
+                .build();
+
+        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+                .punt().build();
+//                .setOutput(outPort).build();
+
+        ForwardingObjective.Builder objective = DefaultForwardingObjective
+                .builder().withTreatment(treatment).withSelector(selector)
+                .fromApp(appId).withFlag(ForwardingObjective.Flag.SPECIFIC)
+                .withPriority(65003);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
         } else {
@@ -229,7 +279,8 @@ public class L2RuleInstaller {
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment).withSelector(selector)
                 .fromApp(appId).withFlag(ForwardingObjective.Flag.SPECIFIC)
-                .withPriority(L2_CLASSIFIER_PRIORITY);
+//                .withPriority(L2_CLASSIFIER_PRIORITY);
+        .withPriority(50001);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
         } else {
@@ -281,7 +332,8 @@ public class L2RuleInstaller {
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment.build())
                 .withSelector(selector).fromApp(appId).makePermanent()
-                .withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(L2_CLASSIFIER_PRIORITY);
+                //.withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(L2_CLASSIFIER_PRIORITY);
+                .withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(50002);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
         } else {
