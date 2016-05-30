@@ -7,6 +7,7 @@ public interface VnetManagerService {
 //    String VNETMANAGER_APP_ID = "org.onosproject.vnetmanager";
 //
     void addGateway(Gateway gateway);
+    void deleteGateway(Gateway gateway);
 
     void addOpenstackNode(OpenstackNode node);
 
