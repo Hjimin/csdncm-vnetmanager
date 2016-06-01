@@ -353,7 +353,7 @@ public class L2RuleInstaller {
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment).withSelector(selector)
                 .fromApp(appId).makePermanent().withFlag(ForwardingObjective.Flag.SPECIFIC)
-                .withPriority(50009);
+                .withPriority(50010);
 //                .withPriority(L2_CLASSIFIER_PRIORITY);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
