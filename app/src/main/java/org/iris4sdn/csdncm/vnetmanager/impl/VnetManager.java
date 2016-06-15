@@ -97,7 +97,9 @@ public class VnetManager implements VnetManagerService {
     private static final String CONTROLLER_IP_KEY = "ipaddress";
     private EventuallyConsistentMap<OpenstackNodeId, OpenstackNode> nodeStore;
     private EventuallyConsistentMap<Gateway, PortNumber> gatewayStore;
-    private EventuallyConsistentMap<Ip4Address, MacAddress> vmStore;
+//    private EventuallyConsistentMap<Ip4Address, MacAddress> vmStore;
+    private final Map<Ip4Address, MacAddress> vmStore = new HashMap<>();
+    private final Map<Ip4Address, Gateway> vmGateMatchStore = new HashMap<>();
 
     private VnetPacketProcessor processor = new VnetPacketProcessor();
 
@@ -124,11 +126,11 @@ public class VnetManager implements VnetManagerService {
                 .withTimestampProvider((k, v) -> clockService.getTimestamp())
                 .build();
 
-        vmStore = storageService
-                .<Ip4Address, MacAddress>eventuallyConsistentMapBuilder()
-                .withName(GATEWAY).withSerializer(serializer)
-                .withTimestampProvider((k, v) -> clockService.getTimestamp())
-                .build();
+//        vmStore = storageService
+//                .<Ip4Address, MacAddress>eventuallyConsistentMapBuilder()
+//                .withName(GATEWAY).withSerializer(serializer)
+//                .withTimestampProvider((k, v) -> clockService.getTimestamp())
+//                .build();
 
         deviceService.addListener(deviceListener);
         hostService.addListener(hostListener);
@@ -157,18 +159,18 @@ public class VnetManager implements VnetManagerService {
                 .forEach(e -> {
                     bridgeHandler.createGatewayTunnel(e, gateway);
                     gatewayStore.put(gateway, gateway.getGatewayPortNumber());
-                    log.info("gateway Port number!!!!!!!!!!!!!!!!!!!!!!!!11 {}", gateway.getGatewayPortNumber());
-//                    log.info("bridge {}", e.getBridgeId(Bridge.BridgeType.INTEGRATION));
-//                    log.info("mac {}", gateway.macAddress());
-//                    installer.programGatewayArp(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
-//                            gateway.macAddress(), Objective.Operation.ADD);
                 });
     }
 
 
     @Override
     public void deleteGateway(Gateway gateway) {
-        //TODO
+        nodeStore.values().stream()
+                .filter(e -> e.getState().containsAll(EnumSet.of(GATEWAY_CREATED)))
+                .forEach(e -> {
+                    //TODO : destroyGatewayTunnel
+                    gatewayStore.remove(gateway);
+                });
     }
 
     private Gateway getGateway(PortNumber inPort){
@@ -191,11 +193,10 @@ public class VnetManager implements VnetManagerService {
     public void addOpenstackNode(OpenstackNode node) {
         checkNotNull(node, OPENSTACK_NODE_NOT_NULL);
         if(nodeStore.containsKey(node.id())) {
-            log.info("Remove Openstack node {} pre-configured", node.id());
+            log.info("Remove pre-configured openstack node {} ", node.id());
             nodeStore.remove(node.id());
         }
-
-        log.info("Openstack node {} in {} configured", node.id(), node.getManageNetworkIp());
+        log.info("Add configured openstack node {} using {}", node.id(), node.getManageNetworkIp());
         nodeStore.put(node.id(), node);
         node.applyState(CONFIGURED);
     }
@@ -684,68 +685,18 @@ public class VnetManager implements VnetManagerService {
         } else if (operation == Objective.Operation.REMOVE) {
             vmStore.remove(vm.ipAddress().getIp4Address());
         }
-
-
-//        nodeStore.values().stream()
-//                .filter(e -> e.getState().contains(TUNNEL_CREATED))
-//                .forEach(e -> {
-//                    gatewayStore.values().stream().forEach(gatewayPort -> {
-//                        installer.programGatewayIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
-//                        vm.segmentationId(), gatewayPort, operation);
-//                    });
-//                });
-
-
-
-//        gatewayStore.keySet().stream().forEach(gateway -> {
-//            log.info("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-//            installer.programLocalIn(gateway.getBridgeId(Bridge.BridgeType.INTEGRATION),
-//                    vm.segmentationId(), gatewayStore.get(gateway), vm.macAddress(), operation);
-//        });
-
-//        Gateway gateway = null;
-//        Iterator<Gateway> gateways = gatewayStore.keySet().iterator();
-//        while (gateways.hasNext()) {
-//            gateway = gateways.next();
-//        }
-//        if(gateway == null)
-//            return;
-
-//        final PortNumber finalPortNumber = gatewayStore.get(gateway);
-//        final Gateway finalGateway = gateway;
-
-
-
-
-
-//        nodeStore.values().stream()
-//                .filter(e -> e.getState().contains(TUNNEL_CREATED))
-//                .forEach(e -> {
-//                    installer.programArpClassifier(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
-//                            vm.ipAddress().getIp4Address(), vm.segmentationId(), operation);
-//                    Iterator<Gateway> gateways = gatewayStore.keySet().iterator();
-//                    while (gateways.hasNext()) {
-//                        Gateway gateway = gateways.next();
-//                        installer.programGatewayArp(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
-//                                vm.segmentationId(), gateway.macAddress(),
-//                                operation);
-//                    }
-//                    gateways = null;
-//                });
-
     }
 
-    private void processArp(ARP arpPacket, PortNumber inPort){
-        MacAddress srcMacAddress = MacAddress.valueOf(arpPacket.getSenderHardwareAddress());
-        MacAddress dstMacAddress = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
-        Ip4Address scrIpAddress = Ip4Address.valueOf(arpPacket.getSenderProtocolAddress());
+    private void processArp(ARP arpPacket, PortNumber inPort) {
+        MacAddress targetHostMac = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
+        Ip4Address srcRemoteVmIp = Ip4Address.valueOf(arpPacket.getSenderProtocolAddress());
 
-        Iterator<Host> hosts = hostService.getHostsByMac(dstMacAddress).iterator();
+        Iterator<Host> hosts = hostService.getHostsByMac(targetHostMac).iterator();
         while (hosts.hasNext()) {
             Host host = hosts.next();
             String ifaceId = host.annotations().value(IFACEID);
             if (ifaceId == null) {
-//                log.error("The ifaceId of Host is null");
+                log.error("The ifaceId of Host is null");
                 return;
             }
 
@@ -754,26 +705,68 @@ public class VnetManager implements VnetManagerService {
             TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
             SegmentationId segmentationId = tenantNetwork.segmentationId();
 
-            log.info("src {}" , srcMacAddress);
-            log.info("src {}" , scrIpAddress);
-            log.info("dst {}", dstMacAddress);
-            MacAddress vmMac = vmStore.get(scrIpAddress);
-//            Gateway gateway = getGateway(srcMacAddress);
+            MacAddress remoteVmMac = vmStore.get(srcRemoteVmIp);
             Gateway  gateway = getGateway(inPort);
-            log.info("vmMAc {}", vmMac);
-//            log.info("gateway {}", gateway);
-            log.info("inPort {}", inPort);
-            if(vmMac == null)
+            if(remoteVmMac == null) {
+                log.info("remote vm is null");
                 return;
+            }
 
-            log.info("!!!!!!!!!!!!!!!!!!!!!! gateway {}",gateway.toString());
-            log.info("~~~~~~~~~~~~~~~ vmStore {}", vmMac.toString());
+            vmGateMatchStore.put(srcRemoteVmIp, gateway);
             nodeStore.values().stream()
                 .filter(e -> e.getState().contains(GATEWAY_CREATED))
                 .forEach(e -> {
                     installer.programLocalIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                            segmentationId, gateway.getGatewayPortNumber(), vmMac,
+                            segmentationId, gateway.getGatewayPortNumber(), remoteVmMac,
                             Objective.Operation.ADD);
+                });
+        }
+    }
+
+
+    private void processRarp(ARP arpPacket, PortNumber inPort) {
+        MacAddress targetHostMac = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
+        Ip4Address srcRemoteVmIp = Ip4Address.valueOf(arpPacket.getSenderProtocolAddress());
+
+        Iterator<Host> hosts = hostService.getHostsByMac(targetHostMac).iterator();
+        while (hosts.hasNext()) {
+            Host host = hosts.next();
+            String ifaceId = host.annotations().value(IFACEID);
+            if (ifaceId == null) {
+                log.error("The ifaceId of Host is null");
+                return;
+            }
+
+            VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
+            VirtualPort virtualPort = virtualPortService.getPort(virtualPortId);
+            TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
+            SegmentationId segmentationId = tenantNetwork.segmentationId();
+
+            MacAddress remoteVmMac = vmStore.get(srcRemoteVmIp);
+            Gateway downGateway = vmGateMatchStore.get(srcRemoteVmIp);
+            Gateway  newGateway = getGateway(inPort);
+            if(remoteVmMac == null
+                    || downGateway == null
+                    || newGateway == null) {
+                log.info("Vm or gateway is null");
+                return;
+            }
+
+            vmGateMatchStore.remove(srcRemoteVmIp);
+            vmGateMatchStore.put(srcRemoteVmIp, newGateway);
+            deleteGateway(downGateway);
+
+            nodeStore.values().stream()
+                .filter(e -> e.getState().contains(GATEWAY_CREATED))
+                .forEach(e -> {
+                    installer.programLocalIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
+                            segmentationId, downGateway.getGatewayPortNumber(), remoteVmMac,
+                            Objective.Operation.REMOVE);
+                    installer.programLocalIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
+                            segmentationId, newGateway.getGatewayPortNumber(), remoteVmMac,
+                            Objective.Operation.ADD);
+                    installer.programGatewayIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
+                                segmentationId, downGateway.getGatewayPortNumber(), Objective.Operation.REMOVE);
                 });
         }
     }
@@ -803,9 +796,12 @@ public class VnetManager implements VnetManagerService {
                 return;
             }
 
-            if(ethernet.getEtherType() == Ethernet.TYPE_ARP){
+            if(ethernet.getEtherType() == Ethernet.TYPE_ARP) {
                 ARP arpPacket = (ARP) ethernet.getPayload();
                 processArp(arpPacket, sourcePoint);
+            } else if (ethernet.getEtherType() == Ethernet.TYPE_RARP) {
+                ARP rarpPacket = (ARP) ethernet.getPayload();
+                processRarp(rarpPacket, sourcePoint);
             }
         }
     }

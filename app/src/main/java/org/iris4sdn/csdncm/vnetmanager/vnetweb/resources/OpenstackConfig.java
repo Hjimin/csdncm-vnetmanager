@@ -44,16 +44,6 @@ public class OpenstackConfig extends AbstractWebResource {
     public static final String TUNNEL_TYPE = "tunnelType";
     public static final String NODE_TYPE = "nodeType";
 
-
-//    private final VnetManagerService vnetManagerService = getService(VnetManagerService.class);
-
-    @GET
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response listOpenstackNode() {
-        log.info("hahahahahhahhahahahahahahhahahahhahahah");
-        return Response.status(Response.Status.OK).entity("haha").build();
-    }
-
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
@@ -61,7 +51,7 @@ public class OpenstackConfig extends AbstractWebResource {
         try{
             ObjectMapper mapper = new ObjectMapper();
             JsonNode cfg = mapper.readTree(input);
-            String value = "haha";
+            String value = " ";
             if(decodeConfigFile(cfg)){
                 log.info("Configuration Added");
                 value = "success";
@@ -120,7 +110,7 @@ public class OpenstackConfig extends AbstractWebResource {
 
         OpenstackNode openstackNode = new OpenstackNode(hostName, publicNetworkIp,
                 manageNetworkIp, dataNetworkIp, tunnelType, nodeType);
-        log.info("openstack node {} ", openstackNode.name());
+        log.info("Openstack node {} is configured", openstackNode.name());
         VnetManagerService vnetManagerService = getService(VnetManagerService.class);
         vnetManagerService.addOpenstackNode(openstackNode);
         return true;
