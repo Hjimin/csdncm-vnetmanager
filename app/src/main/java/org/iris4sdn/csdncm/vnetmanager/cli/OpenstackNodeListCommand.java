@@ -2,9 +2,9 @@ package org.iris4sdn.csdncm.vnetmanager.cli;
 
 import com.google.common.collect.Lists;
 import org.apache.karaf.shell.commands.Command;
-import org.onosproject.cli.AbstractShellCommand;
+import org.iris4sdn.csdncm.vnetmanager.NodeManagerService;
 import org.iris4sdn.csdncm.vnetmanager.OpenstackNode;
-import org.iris4sdn.csdncm.vnetmanager.VnetManagerService;
+import org.onosproject.cli.AbstractShellCommand;
 
 import java.util.Collections;
 import java.util.List;
@@ -18,7 +18,7 @@ public class OpenstackNodeListCommand extends AbstractShellCommand {
 
     @Override
     protected void execute() {
-        VnetManagerService service = AbstractShellCommand.get(VnetManagerService.class);
+        NodeManagerService service = AbstractShellCommand.get(NodeManagerService.class);
         List<OpenstackNode> nodes = Lists.newArrayList(service.getOpenstackNodes());
         Collections.sort(nodes, OpenstackNode.OPENSTACK_NODE_COMPARATOR);
 

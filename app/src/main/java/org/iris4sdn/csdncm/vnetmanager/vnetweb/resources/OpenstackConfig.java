@@ -17,15 +17,18 @@ package org.iris4sdn.csdncm.vnetmanager.vnetweb.resources;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.iris4sdn.csdncm.vnetmanager.NodeManagerService;
 import org.iris4sdn.csdncm.vnetmanager.OpenstackNode;
-import org.iris4sdn.csdncm.vnetmanager.VnetManagerService;
 import org.onlab.packet.IpAddress;
 import org.onosproject.incubator.net.tunnel.Tunnel;
 import org.onosproject.rest.AbstractWebResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.ws.rs.*;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.InputStream;
@@ -111,8 +114,8 @@ public class OpenstackConfig extends AbstractWebResource {
         OpenstackNode openstackNode = new OpenstackNode(hostName, publicNetworkIp,
                 manageNetworkIp, dataNetworkIp, tunnelType, nodeType);
         log.info("Openstack node {} is configured", openstackNode.name());
-        VnetManagerService vnetManagerService = getService(VnetManagerService.class);
-        vnetManagerService.addOpenstackNode(openstackNode);
+        NodeManagerService nodeManagerService = getService(NodeManagerService.class);
+        nodeManagerService.addOpenstackNode(openstackNode);
         return true;
     }
 }

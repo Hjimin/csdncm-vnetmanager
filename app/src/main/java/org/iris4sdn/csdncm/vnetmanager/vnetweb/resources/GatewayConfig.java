@@ -3,7 +3,7 @@ package org.iris4sdn.csdncm.vnetmanager.vnetweb.resources;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.iris4sdn.csdncm.vnetmanager.Gateway;
-import org.iris4sdn.csdncm.vnetmanager.VnetManagerService;
+import org.iris4sdn.csdncm.vnetmanager.NodeManagerService;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onosproject.rest.AbstractWebResource;
@@ -65,9 +65,9 @@ public class GatewayConfig extends AbstractWebResource {
 
         Gateway gateway = new Gateway(macAddress, dataNetworkIp);
         log.info("here111111111111111111111111111!! {}", gateway);
-        VnetManagerService vnetManagerService = getService(VnetManagerService.class);
-        log.info("here222222222222222222222222222!! {}", vnetManagerService);
-        vnetManagerService.addGateway(gateway);
+        NodeManagerService nodeManagerService = getService(NodeManagerService.class);
+        log.info("here222222222222222222222222222!! {}", nodeManagerService);
+        nodeManagerService.addGateway(gateway);
         log.info("here333333333333333333333333333!!");
         return true;
     }

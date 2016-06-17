@@ -3,9 +3,11 @@ package org.iris4sdn.csdncm.vnetmanager.impl;
 import com.google.common.collect.Sets;
 import org.apache.felix.scr.annotations.*;
 import org.iris4sdn.csdncm.vnetmanager.*;
-import org.iris4sdn.csdncm.vnetmanager.virtualmachine.*;
+import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachine;
+import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachineEvent;
+import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachineListener;
+import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachineService;
 import org.onlab.packet.*;
-import org.onlab.util.KryoNamespace;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.mastership.MastershipService;
@@ -21,8 +23,6 @@ import org.onosproject.net.packet.InboundPacket;
 import org.onosproject.net.packet.PacketContext;
 import org.onosproject.net.packet.PacketProcessor;
 import org.onosproject.net.packet.PacketService;
-import org.onosproject.store.serializers.KryoNamespaces;
-import org.onosproject.store.service.EventuallyConsistentMap;
 import org.onosproject.store.service.LogicalClockService;
 import org.onosproject.store.service.StorageService;
 import org.onosproject.vtnrsc.SegmentationId;
@@ -81,6 +81,9 @@ public class VnetManager implements VnetManagerService {
     protected PacketService packetService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected NodeManagerService nodeManagerService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected VirtualMachineService virtualMachineService;
     private final ExecutorService eventExecutor = Executors
             .newFixedThreadPool(1, groupedThreads("onos/vnetmanager", "event-handler"));
@@ -94,10 +97,7 @@ public class VnetManager implements VnetManagerService {
     private static final String IFACEID = "ifaceid";
     private static final String OPENSTACK_NODES = "openstack-nodes";
     private static final String GATEWAY = "multi-gateway";
-        private static final String OVSDB_IP_KEY = "ipaddress";
-    private EventuallyConsistentMap<OpenstackNodeId, OpenstackNode> nodeStore;
-    private EventuallyConsistentMap<Gateway, PortNumber> gatewayStore;
-//    private EventuallyConsistentMap<Ip4Address, MacAddress> vmStore;
+    private static final String OVSDB_IP_KEY = "ipaddress";
     private final Map<Ip4Address, MacAddress> vmStore = new HashMap<>();
     private final Map<Ip4Address, Gateway> vmGateMatchStore = new HashMap<>();
 
@@ -109,28 +109,6 @@ public class VnetManager implements VnetManagerService {
         packetService.addProcessor(processor, PacketProcessor.director(1));
 
         installer = L2RuleInstaller.ruleInstaller(appId);
-        KryoNamespace.Builder serializer = KryoNamespace.newBuilder()
-                .register(KryoNamespaces.API)
-                .register(OpenstackNodeId.class)
-                .register(VirtualMachineId.class);
-
-        nodeStore = storageService
-                .<OpenstackNodeId, OpenstackNode>eventuallyConsistentMapBuilder()
-                .withName(OPENSTACK_NODES).withSerializer(serializer)
-                .withTimestampProvider((k, v) -> clockService.getTimestamp())
-                .build();
-
-        gatewayStore = storageService
-                .<Gateway, PortNumber>eventuallyConsistentMapBuilder()
-                .withName(GATEWAY).withSerializer(serializer)
-                .withTimestampProvider((k, v) -> clockService.getTimestamp())
-                .build();
-
-//        vmStore = storageService
-//                .<Ip4Address, MacAddress>eventuallyConsistentMapBuilder()
-//                .withName(GATEWAY).withSerializer(serializer)
-//                .withTimestampProvider((k, v) -> clockService.getTimestamp())
-//                .build();
 
         deviceService.addListener(deviceListener);
         hostService.addListener(hostListener);
@@ -151,102 +129,13 @@ public class VnetManager implements VnetManagerService {
 
         log.info("Stopped");
     }
-    @Override
-    public void addGateway(Gateway gateway) {
-        //create gateway
-        nodeStore.values().stream()
-                .filter(e -> e.getState().containsAll(EnumSet.of(BRIDGE_CREATED)))
-                .forEach(e -> {
-                    bridgeHandler.createGatewayTunnel(e, gateway);
-                    gatewayStore.put(gateway, gateway.getGatewayPortNumber());
-                });
-    }
-
-
-    @Override
-    public void deleteGateway(Gateway gateway) {
-        nodeStore.values().stream()
-                .filter(e -> e.getState().containsAll(EnumSet.of(GATEWAY_CREATED)))
-                .forEach(e -> {
-                    //TODO : destroyGatewayTunnel
-                    gatewayStore.remove(gateway);
-                });
-    }
-
-    private Gateway getGateway(PortNumber inPort){
-        return gatewayStore.keySet().stream()
-                .filter(e -> {
-                    if(gatewayStore.get(e).equals(inPort)) {
-                        log.info("!!! {}", gatewayStore.get(e));
-                        log.info("inport {}", inPort);
-                        return true;
-                    } else {
-                        log.info("~~~~~~~~~~~ {}", gatewayStore.get(e));
-                        log.info("inport {}", inPort);
-                        return false;
-                    }
-                })
-                .findFirst().orElse(null);
-    }
-
-    @Override
-    public void addOpenstackNode(OpenstackNode node) {
-        checkNotNull(node, OPENSTACK_NODE_NOT_NULL);
-        if(nodeStore.containsKey(node.id())) {
-            log.info("Remove pre-configured openstack node {} ", node.id());
-            nodeStore.remove(node.id());
-        }
-        log.info("Add configured openstack node {} using {}", node.id(), node.getManageNetworkIp());
-        nodeStore.put(node.id(), node);
-        node.applyState(CONFIGURED);
-    }
-
-    @Override
-    public void deleteOpenstackNode(OpenstackNode node) {
-        checkNotNull(node, OPENSTACK_NODE_NOT_NULL);
-        nodeStore.remove(node.id());
-    }
-
-    @Override
-    public Iterable<OpenstackNode> getOpenstackNodes() {
-        return Collections.unmodifiableCollection(nodeStore.values());
-    }
-
-    @Override
-    public OpenstackNode getOpenstackNode(DeviceId deviceId) {
-        return nodeStore.values().stream()
-                .filter(e -> e.getState().containsAll(EnumSet.of(BRIDGE_CREATED)))
-                .filter(e -> e.getBridgeId(Bridge.BridgeType.INTEGRATION).equals(deviceId)
-                        || e.getBridgeId(Bridge.BridgeType.EXTERNAL).equals(deviceId))
-                .findFirst().orElse(null);
-    }
-
-    @Override
-    public OpenstackNode getOpenstackNode(String hostName) {
-        checkNotNull(hostName);
-
-        OpenstackNode node = nodeStore.values().stream()
-                .filter(e -> e.id().equals(OpenstackNodeId.valueOf(hostName)))
-                .findFirst().orElse(null);
-
-        return node;
-    }
-
-    @Override
-    public OpenstackNode getOpenstackNode(VirtualPortId virtualPortId) {
-        return nodeStore.values().stream()
-                .filter(e -> e.getState().containsAll(EnumSet.of(BRIDGE_CREATED)))
-                .filter(e -> e.getVirutalPortNumber(virtualPortId) != null)
-                .findFirst().orElse(null);
-    }
-
 
     private OpenstackNode connectNodetoOvsdb(Device ovsdb) {
         // Find out Openstack node which is configured in advance.
         String nodeManageIp = ovsdb.annotations().value(OVSDB_IP_KEY);
         IpAddress nodeManageNetworkIp = IpAddress.valueOf(nodeManageIp);
 
-        OpenstackNode node = nodeStore.values().stream()
+        OpenstackNode node = Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getManageNetworkIp().equals(nodeManageNetworkIp))
                 .findFirst().orElse(null);
 
@@ -297,7 +186,7 @@ public class VnetManager implements VnetManagerService {
         DeviceId ovsdbDeviceId = ovsdb.id();
         log.info("Ovsdb {} vanished", ovsdbDeviceId);
 
-        OpenstackNode node = nodeStore.values().stream()
+        OpenstackNode node = Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().containsAll(EnumSet.of(OVSDB_CONNECTED)))
                 .filter(e -> e.getOvsdbId().equals(ovsdbDeviceId))
                 .findFirst().orElse(null);
@@ -307,7 +196,7 @@ public class VnetManager implements VnetManagerService {
             return;
         }
 
-        nodeStore.values().stream()
+        Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().containsAll(EnumSet.of(TUNNEL_CREATED)))
                 .filter(e -> !e.equals(node))
                 .forEach(e -> bridgeHandler.destroyTunnel(node, e));
@@ -324,7 +213,7 @@ public class VnetManager implements VnetManagerService {
             return;
         }
 
-        OpenstackNode node = getOpenstackNode(ovsBridgeId);
+        OpenstackNode node = nodeManagerService.getOpenstackNode(ovsBridgeId);
         if (node == null) {
             log.warn("No information of Openstack node for detected ovs {}", ovsBridgeId);
             return;
@@ -356,7 +245,7 @@ public class VnetManager implements VnetManagerService {
             node.applyState(EXTERNAL_BRIDGE_DETECTED);
 
         } else if (ovsBridgeId.equals(node.getBridgeId(Bridge.BridgeType.INTEGRATION))) {
-            nodeStore.values().stream()
+            Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                     .filter(e -> e.getState().containsAll(EnumSet.of(BRIDGE_CREATED)))
                     .filter(e -> !e.equals(node))
                     .forEach(e -> bridgeHandler.createTunnel(node, e));
@@ -373,12 +262,12 @@ public class VnetManager implements VnetManagerService {
         DeviceId ovsdbBridgeId = ovsdbBridge.id();
         log.info("OVS {} vanished ", ovsdbBridgeId);
 
-        OpenstackNode node = getOpenstackNode(ovsdbBridgeId);
+        OpenstackNode node = nodeManagerService.getOpenstackNode(ovsdbBridgeId);
         if (node == null) {
             log.warn("No information of Openstack node for detected ovs {}", ovsdbBridgeId);
             return;
         }
-        nodeStore.values().stream()
+        Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().containsAll(EnumSet.of(TUNNEL_CREATED)))
                 .filter(e -> !e.equals(node))
                 .forEach(e -> bridgeHandler.destroyTunnel(node, e));
@@ -395,7 +284,7 @@ public class VnetManager implements VnetManagerService {
             log.info("This host is not under our control {}", host.toString());
             return;
         }
-        OpenstackNode node = getOpenstackNode(deviceId);
+        OpenstackNode node = nodeManagerService.getOpenstackNode(deviceId);
         if (node == null) {
             log.error("Could not find Openstack node of the host {} in {} ",
                     host.toString(), deviceId);
@@ -479,13 +368,13 @@ public class VnetManager implements VnetManagerService {
 //            tunnel_gateway_ports.add(gwport);
 //        });
 //
-        gatewayStore.values().stream().forEach(gatewayPort -> {
+        Sets.newHashSet(nodeManagerService.getGatewayPorts()).stream().forEach(gatewayPort -> {
             installer.programGatewayIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                     gatewayPort, type);
         });
 
         // For remote Openstack nodes (gateway included)
-        nodeStore.values().stream()
+        Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> !e.equals(node))
                 .filter(e -> e.getState().containsAll(EnumSet.of(TUNNEL_CREATED)))
                 .forEach(e -> {
@@ -537,7 +426,7 @@ public class VnetManager implements VnetManagerService {
         Set<PortNumber> virtualPorts =
                 Sets.newHashSet(node.getVirutalPortNumbers(segmentationId));
         Set<PortNumber> gatewayPorts = new HashSet<>();
-        gatewayStore.values().stream().forEach(e -> gatewayPorts.add(e));
+        Sets.newHashSet(nodeManagerService.getGatewayPorts()).stream().forEach(e -> gatewayPorts.add(e));
         // Add local virtual ports & tunnel ports for entire out ports
         allPorts.addAll(virtualPorts);
         allPorts.addAll(tunnelPorts);
@@ -616,14 +505,14 @@ public class VnetManager implements VnetManagerService {
             SegmentationId segmentationId = tenantNetwork.segmentationId();
 
             MacAddress remoteVmMac = vmStore.get(srcRemoteVmIp);
-            Gateway  gateway = getGateway(inPort);
+            Gateway  gateway = nodeManagerService.getGateway(inPort);
             if(remoteVmMac == null) {
                 log.info("remote vm is null");
                 return;
             }
 
             vmGateMatchStore.put(srcRemoteVmIp, gateway);
-            nodeStore.values().stream()
+            Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().contains(GATEWAY_CREATED))
                 .forEach(e -> {
                     installer.programLocalIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
@@ -654,7 +543,7 @@ public class VnetManager implements VnetManagerService {
 
             MacAddress remoteVmMac = vmStore.get(srcRemoteVmIp);
             Gateway downGateway = vmGateMatchStore.get(srcRemoteVmIp);
-            Gateway  newGateway = getGateway(inPort);
+            Gateway  newGateway = nodeManagerService.getGateway(inPort);
             if(remoteVmMac == null
                     || downGateway == null
                     || newGateway == null) {
@@ -664,9 +553,9 @@ public class VnetManager implements VnetManagerService {
 
             vmGateMatchStore.remove(srcRemoteVmIp);
             vmGateMatchStore.put(srcRemoteVmIp, newGateway);
-            deleteGateway(downGateway);
+            nodeManagerService.deleteGateway(downGateway);
 
-            nodeStore.values().stream()
+            Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().contains(GATEWAY_CREATED))
                 .forEach(e -> {
                     installer.programLocalIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
