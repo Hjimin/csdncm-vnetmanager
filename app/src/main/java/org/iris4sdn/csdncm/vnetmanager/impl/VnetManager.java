@@ -263,6 +263,7 @@ public class VnetManager implements VnetManagerService {
     }
 
     public void onControllerDetected(Device device) {
+        // Openstack node is connected to onos controller -> ovsdb is created
         DeviceId deviceId = device.id();
         log.info("New ovsdb {} found", deviceId);
 
@@ -390,6 +391,8 @@ public class VnetManager implements VnetManagerService {
 //                            e.macAddress(), Objective.Operation.ADD);
 //                });
 
+
+
             node.applyState(INTEGRATION_BRIDGE_DETECTED);
         }
 
@@ -421,6 +424,7 @@ public class VnetManager implements VnetManagerService {
     public void onHostDetected(Host host) {
         log.info("New host found {}", host.id());
         DeviceId deviceId = host.location().deviceId();
+
         if (!mastershipService.isLocalMaster(deviceId)) {
             log.info("This host is not under our control {}", host.toString());
             return;
@@ -438,7 +442,6 @@ public class VnetManager implements VnetManagerService {
                     host.toString(), deviceId);
             return;
         }
-
         VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
         PortNumber portNumber = host.location().port();
         VirtualPort virtualPort = virtualPortService.getPort(virtualPortId);
@@ -518,7 +521,7 @@ public class VnetManager implements VnetManagerService {
         node.getTunnelPortNumbers()
                 .forEach(e -> {
                     installer.programTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                            segmentationId, e, type);
+                            e, type);
                 });
 
 //        Set<PortNumber> tunnel_gateway_ports = new HashSet<>();
@@ -528,7 +531,7 @@ public class VnetManager implements VnetManagerService {
 //
         gatewayStore.values().stream().forEach(gatewayPort -> {
             installer.programGatewayIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                    segmentationId, gatewayPort, type);
+                    gatewayPort, type);
         });
 
         // For remote Openstack nodes (gateway included)
@@ -591,21 +594,23 @@ public class VnetManager implements VnetManagerService {
         allPorts.addAll(gatewayPorts);
 
         // Virtual ports broadcast to all ports
-        virtualPorts.stream().forEach(e -> {
+//        virtualPorts.stream().forEach(e -> {
             installer.programBroadcast(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                    segmentationId, e, allPorts, type);
-        });
+                    segmentationId, allPorts, type);
+//        });
 
-        // Tunnel ports broadcast only to virtual ports
-        tunnelPorts.stream().forEach(e -> {
-            installer.programBroadcast(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                    segmentationId, e, virtualPorts, type);
-        });
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//        // Tunnel ports broadcast only to virtual ports
+//        tunnelPorts.stream().forEach(e -> {
+//            installer.programBroadcast(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
+//                    segmentationId,virtualPorts, type);
+//        });
 
-        gatewayPorts.stream().forEach(e -> {
-            installer.programBroadcast(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                    segmentationId, e, virtualPorts, type);
-        });;
+//        gatewayPorts.stream().forEach(e -> {
+//            installer.programBroadcast(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
+//                    segmentationId, virtualPorts, type);
+//        });
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         if (type == Objective.Operation.REMOVE) {
             // Broadcasting rules should be added again when removed
@@ -613,17 +618,17 @@ public class VnetManager implements VnetManagerService {
             tunnelPorts.remove(portNumber);
             allPorts.remove(portNumber);
 
-            virtualPorts.stream().forEach(e -> {
-                installer.programBroadcast(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                        segmentationId, e, allPorts, Objective.Operation.ADD);
-            });
-
-            if (!virtualPorts.isEmpty()) {
-                tunnelPorts.stream().forEach(e -> {
-                    installer.programBroadcast(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                            segmentationId, e, virtualPorts, Objective.Operation.ADD);
-                });
-            }
+//            virtualPorts.stream().forEach(e -> {
+//                installer.programBroadcast(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
+//                        segmentationId, e, allPorts, Objective.Operation.ADD);
+//            });
+//
+//            if (!virtualPorts.isEmpty()) {
+//                tunnelPorts.stream().forEach(e -> {
+//                    installer.programBroadcast(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
+//                            segmentationId, e, virtualPorts, Objective.Operation.ADD);
+//                });
+//            }
         }
     }
 
@@ -766,7 +771,7 @@ public class VnetManager implements VnetManagerService {
                             segmentationId, newGateway.getGatewayPortNumber(), remoteVmMac,
                             Objective.Operation.ADD);
                     installer.programGatewayIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                                segmentationId, downGateway.getGatewayPortNumber(), Objective.Operation.REMOVE);
+                                downGateway.getGatewayPortNumber(), Objective.Operation.REMOVE);
                 });
         }
     }

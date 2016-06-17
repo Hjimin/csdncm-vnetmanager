@@ -283,7 +283,7 @@ public class L2RuleInstaller {
                 .builder().withTreatment(treatment.build()).withSelector(selector)
                 .fromApp(appId).withFlag(ForwardingObjective.Flag.SPECIFIC)
 //                .withPriority(L2_CLASSIFIER_PRIORITY);
-        .withPriority(50001);
+        .withPriority(50000);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
         } else {
@@ -308,7 +308,7 @@ public class L2RuleInstaller {
                 .builder().withTreatment(treatment).withSelector(selector)
                 .fromApp(appId).withFlag(ForwardingObjective.Flag.SPECIFIC)
 //                .withPriority(L2_CLASSIFIER_PRIORITY);
-        .withPriority(50001);
+        .withPriority(50000);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
         } else {
@@ -316,13 +316,33 @@ public class L2RuleInstaller {
         }
     }
 
-    public void programTunnelIn(DeviceId deviceId, SegmentationId segmentationId,
-                                 PortNumber inPort, Objective.Operation type) {
+//    public void programTunnelIn(DeviceId deviceId, SegmentationId segmentationId,
+//                                 PortNumber inPort, Objective.Operation type) {
+//        log.info("Program flow toward local VMs from tunnel ports");
+//
+//        TrafficSelector selector = DefaultTrafficSelector.builder()
+//                .matchInPort(inPort).add(Criteria.matchTunnelId(Long
+//                        .parseLong(segmentationId.toString())))
+//                .build();
+//
+//        TrafficTreatment treatment = DefaultTrafficTreatment.builder().build();
+//
+//        ForwardingObjective.Builder objective = DefaultForwardingObjective
+//                .builder().withTreatment(treatment).withSelector(selector)
+//                .fromApp(appId).makePermanent().withFlag(ForwardingObjective.Flag.SPECIFIC)
+//                .withPriority(L2_CLASSIFIER_PRIORITY);
+//        if (type.equals(Objective.Operation.ADD)) {
+//            flowObjectiveService.forward(deviceId, objective.add());
+//        } else {
+//            flowObjectiveService.forward(deviceId, objective.remove());
+//        }
+//    }
+
+    public void programTunnelIn(DeviceId deviceId, PortNumber inPort, Objective.Operation type) {
         log.info("Program flow toward local VMs from tunnel ports");
 
         TrafficSelector selector = DefaultTrafficSelector.builder()
-                .matchInPort(inPort).add(Criteria.matchTunnelId(Long
-                        .parseLong(segmentationId.toString())))
+                .matchInPort(inPort)
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder().build();
@@ -338,13 +358,12 @@ public class L2RuleInstaller {
         }
     }
 
-    public void programGatewayIn(DeviceId deviceId, SegmentationId segmentationId,
+    public void programGatewayIn(DeviceId deviceId,
                                  PortNumber inPort, Objective.Operation type) {
         log.info("Program flow toward local VMs from tunnel ports");
 
         TrafficSelector selector = DefaultTrafficSelector.builder()
-                .matchInPort(inPort).add(Criteria.matchTunnelId(Long
-                        .parseLong(segmentationId.toString())))
+                .matchInPort(inPort)
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
@@ -361,31 +380,111 @@ public class L2RuleInstaller {
             flowObjectiveService.forward(deviceId, objective.remove());
         }
     }
-
+// public void programGatewayIn(DeviceId deviceId, SegmentationId segmentationId,
+//                                 PortNumber inPort, Objective.Operation type) {
+//        log.info("Program flow toward local VMs from tunnel ports");
+//
+//        TrafficSelector selector = DefaultTrafficSelector.builder()
+//                .matchInPort(inPort).add(Criteria.matchTunnelId(Long
+//                        .parseLong(segmentationId.toString())))
+//                .build();
+//
+//        TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+//                .punt().build();
+//
+//        ForwardingObjective.Builder objective = DefaultForwardingObjective
+//                .builder().withTreatment(treatment).withSelector(selector)
+//                .fromApp(appId).makePermanent().withFlag(ForwardingObjective.Flag.SPECIFIC)
+//                .withPriority(50010);
+////                .withPriority(L2_CLASSIFIER_PRIORITY);
+//        if (type.equals(Objective.Operation.ADD)) {
+//            flowObjectiveService.forward(deviceId, objective.add());
+//        } else {
+//            flowObjectiveService.forward(deviceId, objective.remove());
+//        }
+//    }
+//public void programBroadcast(DeviceId deviceId,
+//                                        SegmentationId segmentationId,
+//                                        PortNumber inPort,
+//                                        Set<PortNumber> outPorts,
+//                                        Objective.Operation type) {
+//        log.info("Program for broadcast");
+//        TrafficSelector selector = DefaultTrafficSelector.builder()
+//                .matchInPort(inPort).matchEthDst(MacAddress.BROADCAST)
+//                .add(Criteria.matchTunnelId(Long
+//                        .parseLong(segmentationId.toString())))
+//                .build();
+//
+//        TrafficTreatment.Builder treatment = DefaultTrafficTreatment.builder();
+//        for (PortNumber outPort : outPorts) {
+//            if (inPort != outPort) {
+//                treatment.setOutput(outPort);
+//            }
+//        }
+//
+//        ForwardingObjective.Builder objective = DefaultForwardingObjective
+//                .builder().withTreatment(treatment.build())
+//                .withSelector(selector).fromApp(appId).makePermanent()
+//                //.withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(L2_CLASSIFIER_PRIORITY);
+//                .withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(50002);
+//        if (type.equals(Objective.Operation.ADD)) {
+//            flowObjectiveService.forward(deviceId, objective.add());
+//        } else {
+//            flowObjectiveService.forward(deviceId, objective.remove());
+//        }
+//    }
     public void programBroadcast(DeviceId deviceId,
                                         SegmentationId segmentationId,
-                                        PortNumber inPort,
                                         Set<PortNumber> outPorts,
                                         Objective.Operation type) {
         log.info("Program for broadcast");
         TrafficSelector selector = DefaultTrafficSelector.builder()
-                .matchInPort(inPort).matchEthDst(MacAddress.BROADCAST)
+                .matchEthDst(MacAddress.BROADCAST)
                 .add(Criteria.matchTunnelId(Long
                         .parseLong(segmentationId.toString())))
                 .build();
 
         TrafficTreatment.Builder treatment = DefaultTrafficTreatment.builder();
         for (PortNumber outPort : outPorts) {
-            if (inPort != outPort) {
+//            if (inPort != outPort) {
                 treatment.setOutput(outPort);
-            }
+//            }
         }
 
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment.build())
                 .withSelector(selector).fromApp(appId).makePermanent()
                 //.withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(L2_CLASSIFIER_PRIORITY);
-                .withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(50002);
+                .withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(50000);
+        if (type.equals(Objective.Operation.ADD)) {
+            flowObjectiveService.forward(deviceId, objective.add());
+        } else {
+            flowObjectiveService.forward(deviceId, objective.remove());
+        }
+    }
+    public void programBroadcast2(DeviceId deviceId,
+                                        SegmentationId segmentationId,
+                                        Set<PortNumber> outPorts,
+                                        Objective.Operation type) {
+        log.info("Program for broadcast");
+        TrafficSelector selector = DefaultTrafficSelector.builder()
+                .matchEthDst(MacAddress.BROADCAST)
+                .add(Criteria.matchTunnelId(Long
+                        .parseLong(segmentationId.toString())))
+                .build();
+
+        TrafficTreatment.Builder treatment = DefaultTrafficTreatment.builder();
+        for (PortNumber outPort : outPorts) {
+//            if (inPort != outPort) {
+                treatment.setOutput(outPort);
+//            }
+        }
+
+        ForwardingObjective.Builder objective = DefaultForwardingObjective
+                .builder().withTreatment(treatment.build())
+                .withSelector(selector).fromApp(appId).makePermanent()
+                //.withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(L2_CLASSIFIER_PRIORITY);
+                .withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(50001);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
         } else {
