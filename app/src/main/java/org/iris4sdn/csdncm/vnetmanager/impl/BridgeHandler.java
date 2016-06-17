@@ -151,26 +151,26 @@ public final class BridgeHandler {
             bridgeName = EX_BRIDGE_NAME;
         }
 
-        DeviceId deviceId = node.getControllerId();
-        DeviceId bridgeDeviceId = getBridgeId(deviceId, bridgeName);
+        DeviceId ovsdbId = node.getOvsdbId();
+        DeviceId bridgeDeviceId = getBridgeId(ovsdbId, bridgeName);
+
 
         DataPathIdGenerator dpidGenerator = DataPathIdGenerator.builder()
                 .addIpAddress(node.getManageNetworkIp().toString()).build();
 
+        // Create id for new bridge.
         if (bridgeDeviceId == null) {
-            // Create id for new bridge.
             bridgeDeviceId = dpidGenerator.getDeviceId();
         }
 
         if (type == Bridge.BridgeType.INTEGRATION) {
-            BasicDeviceConfig config = configService.addConfig(bridgeDeviceId,
-                    BasicDeviceConfig.class);
+            BasicDeviceConfig config = configService.addConfig(bridgeDeviceId, BasicDeviceConfig.class);
             config.driver(DRIVER_NAME);
             configService.applyConfig(bridgeDeviceId, BasicDeviceConfig.class, config.node());
         }
 
         String dpid = dpidGenerator.getDpId();
-        applyBridgeConfig(deviceId, bridgeName, dpid, null);
+        applyBridgeConfig(ovsdbId, bridgeName, dpid, null);
         node.setBridgeId(bridgeDeviceId, type);
 
         log.info("A new bridge {} is created in node {}", bridgeDeviceId, node.id());
@@ -182,7 +182,7 @@ public final class BridgeHandler {
             return ;
         }
 
-        DeviceId deviceId = node.getControllerId();
+        DeviceId deviceId = node.getOvsdbId();
         IpAddress srcIpAddress = node.getDataNetworkIp();
         IpAddress dstIpAddress = gateway.getDataNetworkIp();
 
@@ -225,7 +225,7 @@ public final class BridgeHandler {
 //            return ;
 //        }
 
-        DeviceId deviceId = node.getControllerId();
+        DeviceId deviceId = node.getOvsdbId();
         IpAddress srcIpAddress = node.getDataNetworkIp();
         IpAddress dstIpAddress = gateway.getDataNetworkIp();
 
@@ -265,8 +265,8 @@ public final class BridgeHandler {
     }
 
     public void createTunnel(OpenstackNode srcNode, OpenstackNode dstNode) {
-        DeviceId srcDeviceId = srcNode.getControllerId();
-        DeviceId dstDeviceId = dstNode.getControllerId();
+        DeviceId srcDeviceId = srcNode.getOvsdbId();
+        DeviceId dstDeviceId = dstNode.getOvsdbId();
 
         IpAddress srcIpAddress = srcNode.getDataNetworkIp();
         IpAddress dstIpAddress = dstNode.getDataNetworkIp();
@@ -311,7 +311,7 @@ public final class BridgeHandler {
     }
 
     public void destroyTunnel(OpenstackNode srcNode, OpenstackNode dstNode) {
-        tunnelManagerService.removeTunnel(dstNode.getControllerId(),
+        tunnelManagerService.removeTunnel(dstNode.getOvsdbId(),
                 dstNode.getDataNetworkIp(), srcNode.getDataNetworkIp());
 
         // Remove tunnel port which mapped to Openstack node otherside.
@@ -323,7 +323,7 @@ public final class BridgeHandler {
     }
 
     public boolean createExPort(OpenstackNode node) {
-        DeviceId deviceId = node.getControllerId();
+        DeviceId deviceId = node.getOvsdbId();
         applyBridgeConfig(deviceId, EX_BRIDGE_NAME, null, EX_PORT_NAME);
 
         return setExPort(node);
@@ -355,7 +355,7 @@ public final class BridgeHandler {
 
         tunnelManagerService.createPatchPort(ovsdbClient, bridgeName, portName, peerName);
 
-        DeviceId deviceId = node.getControllerId();
+        DeviceId deviceId = node.getOvsdbId();
         PortNumber portNumber = null;
         for (int i = 0; i < 10; i++) {
             portNumber = getPortNumber(deviceId, portName);

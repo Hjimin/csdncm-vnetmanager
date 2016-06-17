@@ -94,7 +94,7 @@ public class VnetManager implements VnetManagerService {
     private static final String IFACEID = "ifaceid";
     private static final String OPENSTACK_NODES = "openstack-nodes";
     private static final String GATEWAY = "multi-gateway";
-    private static final String CONTROLLER_IP_KEY = "ipaddress";
+        private static final String OVSDB_IP_KEY = "ipaddress";
     private EventuallyConsistentMap<OpenstackNodeId, OpenstackNode> nodeStore;
     private EventuallyConsistentMap<Gateway, PortNumber> gatewayStore;
 //    private EventuallyConsistentMap<Ip4Address, MacAddress> vmStore;
@@ -241,29 +241,30 @@ public class VnetManager implements VnetManagerService {
     }
 
 
-    private OpenstackNode connectController(Device device) {
+    private OpenstackNode connectNodetoOvsdb(Device ovsdb) {
         // Find out Openstack node which is configured in advance.
-        String localIpAddress = device.annotations()
-                .value(CONTROLLER_IP_KEY);
-        IpAddress localIp = IpAddress.valueOf(localIpAddress);
+        String nodeManageIp = ovsdb.annotations().value(OVSDB_IP_KEY);
+        IpAddress nodeManageNetworkIp = IpAddress.valueOf(nodeManageIp);
 
         OpenstackNode node = nodeStore.values().stream()
-                .filter(e -> e.getManageNetworkIp().equals(localIp))
+                .filter(e -> e.getManageNetworkIp().equals(nodeManageNetworkIp))
                 .findFirst().orElse(null);
 
         if (node == null) {
-            log.warn("No information of Openstack node for detected ovsdb {}", device.id());
+            log.warn("No information of Openstack node for detected ovsdb {}", ovsdb.id());
             return null;
         }
-        node.setControllerId(device.id());
+
+        node.setOvsdbId(ovsdb.id());
         node.applyState(OVSDB_CONNECTED);
 
-        log.info("{} is connected to ovsdb {}", node.id(), device.id());
+        log.info("{} is connected to ovsdb {}", node.id(), ovsdb.id());
         return node;
     }
 
-    public void onControllerDetected(Device device) {
-        // Openstack node is connected to onos controller -> ovsdb is created
+    //public void onConntrollerConnected
+    // Openstack node is connected to onos controller -> ovsdb is created
+    public void nodeConnected(Device device) {
         DeviceId deviceId = device.id();
         log.info("New ovsdb {} found", deviceId);
 
@@ -272,7 +273,7 @@ public class VnetManager implements VnetManagerService {
             return;
         }
 
-        OpenstackNode node = connectController(device);
+        OpenstackNode node = connectNodetoOvsdb(device);
         if (node == null) {
             log.warn("No information of Openstack node for detected ovsdb {}", deviceId);
             return;
@@ -283,27 +284,26 @@ public class VnetManager implements VnetManagerService {
 
         node.applyState(BRIDGE_CREATED);
 
-        if (bridgeHandler.setBridgeOutbandControl(node.getControllerId(),
+        if (bridgeHandler.setBridgeOutbandControl(node.getOvsdbId(),
                 Bridge.BridgeType.INTEGRATION) == false)
             log.warn("Could not set integration bridge to out-of-band control");
 
-        if (bridgeHandler.setBridgeOutbandControl(node.getControllerId(),
+        if (bridgeHandler.setBridgeOutbandControl(node.getOvsdbId(),
                 Bridge.BridgeType.EXTERNAL) == false)
             log.warn("Could not set external bridge to out-of-band control");
-
     }
 
-    public void onControllerVanished(Device device) {
-        DeviceId deviceId = device.id();
-        log.info("Ovsdb {} vanished", deviceId);
+    public void nodeDisconnected(Device ovsdb) {
+        DeviceId ovsdbDeviceId = ovsdb.id();
+        log.info("Ovsdb {} vanished", ovsdbDeviceId);
 
         OpenstackNode node = nodeStore.values().stream()
                 .filter(e -> e.getState().containsAll(EnumSet.of(OVSDB_CONNECTED)))
-                .filter(e -> e.getControllerId().equals(deviceId))
+                .filter(e -> e.getOvsdbId().equals(ovsdbDeviceId))
                 .findFirst().orElse(null);
 
         if (node == null) {
-            log.warn("No information of Openstack node for vanished Ovsdb {}", deviceId);
+            log.warn("No information of Openstack node for vanished Ovsdb {}", ovsdbDeviceId);
             return;
         }
 
@@ -315,23 +315,23 @@ public class VnetManager implements VnetManagerService {
         node.initState();
     }
 
-    public void onOvsDetected(Device device) {
-        DeviceId deviceId = device.id();
-        log.info("New OVS {} found ", deviceId);
+    public void ovsBridgeDetected(Device ovsBridge) {
+        DeviceId ovsBridgeId = ovsBridge.id();
+        log.info("New OVS {} found ", ovsBridgeId);
 
-        if (!mastershipService.isLocalMaster(deviceId)) {
-            log.info("This ovs bridge is not under our control {}", deviceId);
+        if (!mastershipService.isLocalMaster(ovsBridgeId)) {
+            log.info("This ovs bridge is not under our control {}", ovsBridgeId);
             return;
         }
 
-        OpenstackNode node = getOpenstackNode(deviceId);
+        OpenstackNode node = getOpenstackNode(ovsBridgeId);
         if (node == null) {
-            log.warn("No information of Openstack node for detected ovs {}", deviceId);
+            log.warn("No information of Openstack node for detected ovs {}", ovsBridgeId);
             return;
         }
 
         Bridge.BridgeType type = null;
-        if (deviceId.equals(node.getBridgeId(Bridge.BridgeType.EXTERNAL))) {
+        if (ovsBridgeId.equals(node.getBridgeId(Bridge.BridgeType.EXTERNAL))) {
             type = Bridge.BridgeType.EXTERNAL;
 
             // Install blocking rule for attached before installation of drop rule
@@ -342,77 +342,42 @@ public class VnetManager implements VnetManagerService {
                 return;
             }
 
-            installer.programDrop(deviceId,
-                    node.getExPort().number(), Objective.Operation.ADD);
-
             Port exPort = node.getExPort();
-            MacAddress macAddress = MacAddress.valueOf(exPort.annotations()
-                    .value(AnnotationKeys.PORT_MAC));
+            MacAddress macAddress = MacAddress.valueOf(exPort.annotations().value(AnnotationKeys.PORT_MAC));
 
-            installer.programArpRequest(deviceId,
-                    node.getPublicNetworkIp(), macAddress, Objective.Operation.ADD);
-            log.info("node publicNetworkIp");
-
-            installer.programArpResponse(deviceId,
-                    node.getPublicNetworkIp(), Objective.Operation.ADD);
-            installer.programNormalIn(deviceId,
-                    node.getExPort().number(), node.getPublicNetworkIp(),
-                    Objective.Operation.ADD);
-
-            installer.programNormalOut(deviceId, node.getExPort().number(),
-                    Objective.Operation.ADD);
+            installer.programDrop(ovsBridgeId, exPort.number(), Objective.Operation.ADD);
+            installer.programArpRequest(ovsBridgeId, node.getPublicNetworkIp(), macAddress, Objective.Operation.ADD);
+            installer.programArpResponse(ovsBridgeId, node.getPublicNetworkIp(), Objective.Operation.ADD);
+            installer.programNormalIn(ovsBridgeId, exPort.number(), node.getPublicNetworkIp(), Objective.Operation.ADD);
+            installer.programNormalOut(ovsBridgeId, exPort.number(), Objective.Operation.ADD);
 
             // Uninstall blocking rule for attached before installation of drop rule
             installBarrierRule(node, type, Objective.Operation.REMOVE);
-
             node.applyState(EXTERNAL_BRIDGE_DETECTED);
-        } else if (deviceId.equals(node.getBridgeId(Bridge.BridgeType.INTEGRATION))) {
-            type = Bridge.BridgeType.INTEGRATION;
 
+        } else if (ovsBridgeId.equals(node.getBridgeId(Bridge.BridgeType.INTEGRATION))) {
             nodeStore.values().stream()
                     .filter(e -> e.getState().containsAll(EnumSet.of(BRIDGE_CREATED)))
                     .filter(e -> !e.equals(node))
                     .forEach(e -> bridgeHandler.createTunnel(node, e));
-
-//            OpenstackNode gateway = nodeStore.values().stream()
-//                    .filter(e -> e.getNodeType().equals(OpenstackNode.Type.GATEWAY))
-//                    .findFirst().orElse(null);
-//
-//            if (gateway == null) {
-//                log.info("Gateway is not configured");
-//            } else {
-//                bridgeHandler.createGatewayTunnel(node, gateway);
-//            }
-
-//            gatewayStore.keySet().stream()
-//                .forEach(e -> {
-//                    log.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1");
-//                    installer.programGatewayArp(deviceId,
-//                            e.macAddress(), Objective.Operation.ADD);
-//                });
-
-
-
             node.applyState(INTEGRATION_BRIDGE_DETECTED);
         }
 
-        if (node.getState().containsAll(
-                EnumSet.of(INTEGRATION_BRIDGE_DETECTED, EXTERNAL_BRIDGE_DETECTED))) {
+        if (node.getState().containsAll(EnumSet.of(INTEGRATION_BRIDGE_DETECTED, EXTERNAL_BRIDGE_DETECTED))) {
             bridgeHandler.createPatchPort(node, Bridge.BridgeType.INTEGRATION);
             bridgeHandler.createPatchPort(node, Bridge.BridgeType.EXTERNAL);
         }
     }
 
-    public void onOvsVanished(Device device) {
-        DeviceId deviceId = device.id();
-        log.info("OVS {} vanished ", deviceId);
+    public void ovsdbBridgeDeleted(Device ovsdbBridge) {
+        DeviceId ovsdbBridgeId = ovsdbBridge.id();
+        log.info("OVS {} vanished ", ovsdbBridgeId);
 
-        OpenstackNode node = getOpenstackNode(deviceId);
+        OpenstackNode node = getOpenstackNode(ovsdbBridgeId);
         if (node == null) {
-            log.warn("No information of Openstack node for detected ovs {}", deviceId);
+            log.warn("No information of Openstack node for detected ovs {}", ovsdbBridgeId);
             return;
         }
-
         nodeStore.values().stream()
                 .filter(e -> e.getState().containsAll(EnumSet.of(TUNNEL_CREATED)))
                 .filter(e -> !e.equals(node))
@@ -421,7 +386,8 @@ public class VnetManager implements VnetManagerService {
         // Nothing to be processed more since OVS is gone.
     }
 
-    public void onHostDetected(Host host) {
+    //detect node and install rule
+    public void processHost(Host host, Objective.Operation type) {
         log.info("New host found {}", host.id());
         DeviceId deviceId = host.location().deviceId();
 
@@ -429,75 +395,59 @@ public class VnetManager implements VnetManagerService {
             log.info("This host is not under our control {}", host.toString());
             return;
         }
-
-        String ifaceId = host.annotations().value(IFACEID);
-        if (ifaceId == null) {
-            log.error("The ifaceId of Host is null");
-            return;
-        }
-
         OpenstackNode node = getOpenstackNode(deviceId);
         if (node == null) {
             log.error("Could not find Openstack node of the host {} in {} ",
                     host.toString(), deviceId);
             return;
         }
-        VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
-        PortNumber portNumber = host.location().port();
-        VirtualPort virtualPort = virtualPortService.getPort(virtualPortId);
-        if (virtualPort == null) {
-            log.error("Could not find virutal port of the host {}", host.toString());
-            return;
-        }
 
-        // Add virtual port information
-        TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
-        SegmentationId segmentationId = tenantNetwork.segmentationId();
-
-        node.addVirtualPort(virtualPort, portNumber, segmentationId);
+        VirtualPort virtualPort = configureVirtualPort(host, node, type);
 
         // Install flow rules
-        installUnicastOutRule(node, virtualPort, Objective.Operation.ADD);
-        installUnicastInRule(node, virtualPort, Objective.Operation.ADD);
-        installBroadcastRule(node, virtualPort, Objective.Operation.ADD);
+        installUnicastOutRule(node, virtualPort, type);
+        installUnicastInRule(node, virtualPort, type);
+        installBroadcastRule(node, virtualPort, type);
+
+        if(type.equals(Objective.Operation.REMOVE)) {
+            node.removeVirtualPort(virtualPort);
+        }
     }
 
-    public void onHostVanished(Host host) {
-        log.info("Host vanished {}", host.id());
-        DeviceId deviceId = host.location().deviceId();
-        if (!mastershipService.isLocalMaster(deviceId)) {
-            log.info("This host is not under our control {}", host.toString());
-            return;
-        }
-
+   //configure virtual port
+    private VirtualPort configureVirtualPort(Host host, OpenstackNode node, Objective.Operation type) {
         String ifaceId = host.annotations().value(IFACEID);
         if (ifaceId == null) {
             log.error("The ifaceId of Host is null");
-            return;
-        }
-
-        OpenstackNode node = getOpenstackNode(deviceId);
-        if (node == null) {
-            log.error("Could not find Openstack node of the host {}",
-                    host.toString() + " Device : "  + deviceId);
-            return;
+            return null;
         }
 
         VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
-        VirtualPort virtualPort = node.getVirtualPort(virtualPortId);
-        if (virtualPort == null) {
-            log.error("Could not find virutal port of the host {}", host.toString());
-            return;
+        if (type.equals(Objective.Operation.ADD)) {
+            PortNumber portNumber = host.location().port();
+            VirtualPort virtualPort = virtualPortService.getPort(virtualPortId);
+            if (virtualPort == null) {
+                log.error("Could not find virutal port of the host {}", host.toString());
+                return null;
+            }
+
+            // Add virtual port information
+            TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
+            SegmentationId segmentationId = tenantNetwork.segmentationId();
+
+            node.addVirtualPort(virtualPort, portNumber, segmentationId);
+            return virtualPort;
+        } else if(type.equals(Objective.Operation.REMOVE)) {
+            VirtualPort virtualPort = node.getVirtualPort(virtualPortId);
+            if (virtualPort == null) {
+                log.error("Could not find virutal port of the host {}", host.toString());
+                return null;
+            }
+            return virtualPort;
         }
-
-        // Uninstall flow rules
-        installUnicastOutRule(node, virtualPort, Objective.Operation.REMOVE);
-        installUnicastInRule(node, virtualPort, Objective.Operation.REMOVE);
-        installBroadcastRule(node, virtualPort, Objective.Operation.REMOVE);
-
-        // Remove virtual port information
-        node.removeVirtualPort(virtualPort);
+        return null;
     }
+
 
     private void installBarrierRule(OpenstackNode node, Bridge.BridgeType bridgeType,
                                     Objective.Operation type) {
@@ -632,54 +582,9 @@ public class VnetManager implements VnetManagerService {
         }
     }
 
-    private class InnerDeviceListener implements DeviceListener {
 
-        @Override
-        public void event(DeviceEvent event) {
-            Device device = event.subject();
-            if (Device.Type.CONTROLLER == device.type()) {
-                if (DeviceEvent.Type.DEVICE_ADDED == event.type()) {
-                    eventExecutor.submit(() -> onControllerDetected(device));
-                }
-                if (DeviceEvent.Type.DEVICE_AVAILABILITY_CHANGED == event.type()) {
-                    if (deviceService.isAvailable(device.id())) {
-                        eventExecutor.submit(() -> onControllerDetected(device));
-                    } else {
-                        eventExecutor.submit(() -> onControllerVanished(device));
-                    }
-                }
-            } else if (Device.Type.SWITCH == device.type()) {
-                if (DeviceEvent.Type.DEVICE_ADDED == event.type()) {
-                    eventExecutor.submit(() -> onOvsDetected(device));
-                }
-                if (DeviceEvent.Type.DEVICE_AVAILABILITY_CHANGED == event.type()) {
-                    if (deviceService.isAvailable(device.id())) {
-                        eventExecutor.submit(() -> onOvsDetected(device));
-                    } else {
-                        eventExecutor.submit(() -> onOvsVanished(device));
-                    }
-                }
-            } else {
-                log.info("Do nothing for this device type");
-            }
-        }
-    }
 
-    private class InnerHostListener implements HostListener {
 
-        @Override
-        public void event(HostEvent event) {
-            Host host = event.subject();
-            if (HostEvent.Type.HOST_ADDED == event.type()) {
-                onHostDetected(host);
-            } else if (HostEvent.Type.HOST_REMOVED == event.type()) {
-                onHostVanished(host);
-            } else if (HostEvent.Type.HOST_UPDATED == event.type()) {
-                onHostVanished(host);
-                onHostDetected(host);
-            }
-        }
-    }
 
     private void processVirtualMachine(VirtualMachine vm, Objective.Operation operation) {
         log.info("VirtualMachine {} processed", vm);
@@ -773,6 +678,55 @@ public class VnetManager implements VnetManagerService {
                     installer.programGatewayIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
                                 downGateway.getGatewayPortNumber(), Objective.Operation.REMOVE);
                 });
+        }
+    }
+
+
+    private class InnerDeviceListener implements DeviceListener {
+
+        @Override
+        public void event(DeviceEvent event) {
+            Device device = event.subject();
+            if (Device.Type.CONTROLLER == device.type()) {
+                if (DeviceEvent.Type.DEVICE_ADDED == event.type()) {
+                    eventExecutor.submit(() -> nodeConnected(device));
+                }
+                if (DeviceEvent.Type.DEVICE_AVAILABILITY_CHANGED == event.type()) {
+                    if (deviceService.isAvailable(device.id())) {
+                        eventExecutor.submit(() -> nodeConnected(device));
+                    } else {
+                        eventExecutor.submit(() -> nodeDisconnected(device));
+                    }
+                }
+            } else if (Device.Type.SWITCH == device.type()) {
+                if (DeviceEvent.Type.DEVICE_ADDED == event.type()) {
+                    eventExecutor.submit(() -> ovsBridgeDetected(device));
+                }
+                if (DeviceEvent.Type.DEVICE_AVAILABILITY_CHANGED == event.type()) {
+                    if (deviceService.isAvailable(device.id())) {
+                        eventExecutor.submit(() -> ovsBridgeDetected(device));
+                    } else {
+                        eventExecutor.submit(() -> ovsdbBridgeDeleted(device));
+                    }
+                }
+            } else {
+                log.info("Do nothing for this device type");
+            }
+        }
+    }
+
+    private class InnerHostListener implements HostListener {
+        @Override
+        public void event(HostEvent event) {
+            Host host = event.subject();
+            if (HostEvent.Type.HOST_ADDED == event.type()) {
+                processHost(host, Objective.Operation.ADD);
+            } else if (HostEvent.Type.HOST_REMOVED == event.type()) {
+                processHost(host, Objective.Operation.REMOVE);
+            } else if (HostEvent.Type.HOST_UPDATED == event.type()) {
+                processHost(host, Objective.Operation.REMOVE);
+                processHost(host, Objective.Operation.ADD);
+            }
         }
     }
 

@@ -54,7 +54,8 @@ public class OpenstackNode {
         TUNNEL_CREATED,
     }
 
-    private DeviceId controllerId;
+    //controllerId -> ovsdb id
+    private DeviceId ovsdbId;
     private DeviceId exBridgeId;
     private DeviceId intBridgeId;
     private PortNumber gatewayTunnelPortNumber;
@@ -62,7 +63,7 @@ public class OpenstackNode {
     private Port intPatchPort;
     private Port exPort;
 
-    private final OpenstackNodeId id;
+    private final OpenstackNodeId nodeId;
     private final Set<State> currentState = new HashSet<>();
     private final Set<VirtualPort> virtualPorts = new HashSet<>();
     private final Map<VirtualPortId, PortNumber> virtualPortNumbers = new HashMap<>();
@@ -84,7 +85,7 @@ public class OpenstackNode {
     public OpenstackNode(String hostName, IpAddress publicNetworkIp,
                          IpAddress manageNetworkIp, IpAddress dataNetworkIp,
                          Tunnel.Type tunnelType, Type nodeType) {
-        this.id = OpenstackNodeId.valueOf(hostName);
+        this.nodeId = OpenstackNodeId.valueOf(hostName);
         this.hostName = checkNotNull(hostName);
         this.publicNetworkIp = checkNotNull(publicNetworkIp);
         this.manageNetworkIp = checkNotNull(manageNetworkIp);
@@ -114,7 +115,7 @@ public class OpenstackNode {
 //        tenantVirtualPorts.clear();
     }
 
-    public OpenstackNodeId id() { return id; }
+    public OpenstackNodeId id() { return nodeId; }
 
     public String name() {
         return hostName;
@@ -136,12 +137,12 @@ public class OpenstackNode {
 
     public Type getNodeType() { return nodeType; }
 
-    public void setControllerId(DeviceId controllerId) {
-        this.controllerId = controllerId;
+    public void setOvsdbId(DeviceId ovsdbId) {
+        this.ovsdbId = ovsdbId;
     }
 
-    public DeviceId getControllerId() {
-        return controllerId;
+    public DeviceId getOvsdbId() {
+        return ovsdbId;
     }
 
     public void setBridgeId(DeviceId bridgeId, Bridge.BridgeType type) {
@@ -182,7 +183,7 @@ public class OpenstackNode {
      * Transit to initial configured state.
      */
     public void initState() {
-        controllerId = null;
+        ovsdbId = null;
         exBridgeId = null;
         intBridgeId = null;
         currentState.clear();
