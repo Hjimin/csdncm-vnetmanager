@@ -61,7 +61,6 @@ public final class BridgeHandler {
     private static final String EX_BRIDGE_NAME = "br-ex";
     private static final String PATCH_PORT_EX_NAME = "patch-br-ex";
     private static final String PATCH_PORT_INT_NAME = "patch-br-int";
-    private static final String DEFAULT_GATEWAY_IP = "0.0.0.0";
     private static final String EX_PORT_NAME= "eth0";
     private static final int OVSDB_PORT = 6640;
 
@@ -228,14 +227,14 @@ public final class BridgeHandler {
 
         DeviceId deviceId = node.getOvsdbId();
         IpAddress srcIpAddress = node.getDataNetworkIp();
-        IpAddress dstIpAddress = IpAddress.valueOf(DEFAULT_GATEWAY_IP);//gateway.getDataNetworkIp();
+        IpAddress dstIpAddress = gateway.getDataNetworkIp();
 
         tunnelManagerService.createTunnel(deviceId, srcIpAddress, dstIpAddress);
 
         PortNumber port = null;
 
         for (int i = 0; i < 10; i++) {
-            port = getPortNumber(deviceId, "0.0.0.0");
+            port = getPortNumber(deviceId, dstIpAddress.toString());
             if (port == null) {
                 try {
                     // Need to wait for synchronising
@@ -256,9 +255,10 @@ public final class BridgeHandler {
 
         // Save tunnel port which mapped to Openstack node otherside.
         //node.addTunnelPortNumber(gateway.id(), port);
+log.info("port~!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! {}", port);
         gateway.setGatewayPortNumber(port);
         gateway.setBridgeId(deviceId, Bridge.BridgeType.INTEGRATION);
-        node.setGatewayTunnelPortNumber(port);
+//        node.setGatewayTunnelPortNumber(port);
         node.applyState(GATEWAY_CREATED);
 
         log.info("Tunnel from " + node.getDataNetworkIp() + " to "

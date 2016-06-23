@@ -17,16 +17,12 @@ import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.mastership.MastershipService;
 import org.onosproject.net.*;
-import org.onosproject.net.behaviour.ExtensionTreatmentResolver;
 import org.onosproject.net.device.DeviceEvent;
 import org.onosproject.net.device.DeviceListener;
 import org.onosproject.net.device.DeviceService;
-import org.onosproject.net.driver.DriverHandler;
 import org.onosproject.net.driver.DriverService;
 import org.onosproject.net.flow.DefaultTrafficTreatment;
 import org.onosproject.net.flow.TrafficTreatment;
-import org.onosproject.net.flow.instructions.ExtensionTreatment;
-import org.onosproject.net.flow.instructions.ExtensionTreatmentType;
 import org.onosproject.net.flowobjective.Objective;
 import org.onosproject.net.group.*;
 import org.onosproject.net.host.HostEvent;
@@ -311,9 +307,7 @@ public class VnetManager implements VnetManagerService {
                     installGroupTableRule(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                             type);
                 });
-        if (gatewayService.getGatewayPortNumber() == null) {
-            gatewayService.setGatewayPortNumber(gateway.getGatewayPortNumber());
-        }
+
     }
 
 
@@ -402,26 +396,27 @@ public class VnetManager implements VnetManagerService {
         }
         List<GroupBucket> buckets = Lists.newArrayList();
         Sets.newHashSet(gatewayService.getGateways()).stream().forEach(gateway -> {
-            Ip4Address dst = Ip4Address.valueOf(gateway.getDataNetworkIp().toString());
+//            Ip4Address dst = Ip4Address.valueOf(gateway.getDataNetworkIp().toString());
 
             TrafficTreatment.Builder builder = DefaultTrafficTreatment.builder();
 
-            DriverHandler handler = driverService.createHandler(deviceId);
-            ExtensionTreatmentResolver resolver = handler.behaviour(ExtensionTreatmentResolver.class);
-            ExtensionTreatment treatment = resolver
-                    .getExtensionInstruction(ExtensionTreatmentType.ExtensionTreatmentTypes
-                            .NICIRA_SET_TUNNEL_DST.type());
-            try {
-                treatment.setPropertyValue("tunnelDst", dst);
-            } catch (Exception e) {
-                log.error("Failed to get extension instruction to set tunnel dst {}", deviceId);
-            }
+//            DriverHandler handler = driverService.createHandler(deviceId);
+//            ExtensionTreatmentResolver resolver = handler.behaviour(ExtensionTreatmentResolver.class);
+//            ExtensionTreatment treatment = resolver
+//                    .getExtensionInstruction(ExtensionTreatmentType.ExtensionTreatmentTypes
+//                            .NICIRA_SET_TUNNEL_DST.type());
+//            try {
+//                treatment.setPropertyValue("tunnelDst", dst);
+//            } catch (Exception e) {
+//                log.error("Failed to get extension instruction to set tunnel dst {}", deviceId);
+//            }
 
             short weight = gateway.getWeight();
 
-            builder.extension(treatment, deviceId);
+//            builder.extension(treatment, deviceId);
             builder.setOutput(gateway.getGatewayPortNumber());
             GroupBucket bucket = DefaultGroupBucket
+//                    .createSelectGroupBucket(builder.build());
                     .createSelectGroupBucket(builder.build(), weight);
             buckets.add(bucket);
         });
@@ -595,7 +590,7 @@ public class VnetManager implements VnetManagerService {
         return null;
     }
 
-    private void processArp(ARP arpPacket) {
+    private void processArp(ARP arpPacket, PortNumber inPort) {
         MacAddress targetHostMac = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
         MacAddress senderHostMac = MacAddress.valueOf(arpPacket.getSenderHardwareAddress());
         Ip4Address targetIp = Ip4Address.valueOf(arpPacket.getTargetProtocolAddress());
@@ -620,14 +615,15 @@ public class VnetManager implements VnetManagerService {
             TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
             SegmentationId segmentationId = tenantNetwork.segmentationId();
 
-
-            PortNumber gatewayPortNumber = gatewayService.getGatewayPortNumber();
+            Gateway gateway = gatewayService.getGateway(inPort);
 
             Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().contains(GATEWAY_CREATED))
                 .forEach(e -> {
                     installer.programLocalIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                            segmentationId, gatewayPortNumber, senderHostMac,
+                            segmentationId,
+                            inPort,
+                            senderHostMac,
                             Objective.Operation.ADD);
                 });
         }
@@ -810,9 +806,9 @@ public class VnetManager implements VnetManagerService {
             Gateway gateway = event.subject();
             if (GatewayEvent.Type.GATEWAY_PUT == event.type()) {
                 log.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`");
-                processGateway(gateway, Objective.Operation.ADD);
+                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD));
             } else if (GatewayEvent.Type.GATEWAY_REMOVE == event.type()) {
-                processGateway(gateway, Objective.Operation.REMOVE);
+                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.REMOVE));
             }
 //            } else if (G == event.type()) {
 //                processHost(host, Objective.Operation.REMOVE);
@@ -848,7 +844,7 @@ public class VnetManager implements VnetManagerService {
 
             if(ethernet.getEtherType() == Ethernet.TYPE_ARP) {
                 ARP arpPacket = (ARP) ethernet.getPayload();
-                processArp(arpPacket);
+                processArp(arpPacket, sourcePoint);
                 MacAddress targetMac = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
                 if(targetMac.toString().equals(MacAddress.valueOf("ff:ff:ff:ff:ff:ff"))){
 //                    processArpRequest(arpPacket, sourcePoint, context, ethernet);

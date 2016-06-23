@@ -14,11 +14,10 @@ public interface GatewayService
 
 
 
-    PortNumber getGatewayPortNumber();
     Iterable<Gateway> getGateways();
     void addGateway(List<Gateway> gatewayList);
 
-    void setGatewayPortNumber(PortNumber portNumber);
     void deleteGateway(Gateway gateway);
 
+    Gateway getGateway(PortNumber inPort);
 }

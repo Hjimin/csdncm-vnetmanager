@@ -59,7 +59,6 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
     private static final String CONTROLLER_IP_KEY = "ipaddress";
     private EventuallyConsistentMap<OpenstackNodeId, OpenstackNode> nodeStore;
     private EventuallyConsistentMap<OpenstackNodeId, Gateway> gatewayStore;
-    private PortNumber gatewayPortNumber;
 
     private EventuallyConsistentMapListener<OpenstackNodeId, Gateway> gatewayListener =
             new InnerGatewayListener();
@@ -115,17 +114,6 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
         }
     }
 
-
-    @Override
-    public void setGatewayPortNumber(PortNumber portNumber) {
-        gatewayPortNumber = portNumber;
-    }
-
-    @Override
-    public PortNumber getGatewayPortNumber() {
-        return gatewayPortNumber;
-    }
-
     @Override
     public void deleteGateway(Gateway gateway) {
         nodeStore.values().stream()
@@ -134,6 +122,19 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
                     //TODO : destroyGatewayTunnel
                     gatewayStore.remove(gateway.id());
                 });
+    }
+
+    @Override
+    public Gateway getGateway(PortNumber inPort){
+        return gatewayStore.values().stream()
+                .filter(gateway -> {
+                    if (gateway.getGatewayPortNumber().toString().equals(inPort.toString())) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                })
+                .findFirst().orElse(null);
     }
 
     @Override
