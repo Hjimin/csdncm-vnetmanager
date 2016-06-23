@@ -3,29 +3,30 @@ package org.iris4sdn.csdncm.vnetmanager.impl;
 /**
  * Created by gurum on 16. 6. 17.
  */
+
 import org.apache.felix.scr.annotations.*;
-import org.iris4sdn.csdncm.vnetmanager.*;
+import org.iris4sdn.csdncm.vnetmanager.Bridge;
+import org.iris4sdn.csdncm.vnetmanager.NodeManagerService;
+import org.iris4sdn.csdncm.vnetmanager.OpenstackNode;
+import org.iris4sdn.csdncm.vnetmanager.OpenstackNodeId;
+import org.iris4sdn.csdncm.vnetmanager.gateway.Gateway;
+import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayEvent;
+import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayListener;
+import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayService;
 import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachineId;
-import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachineService;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.core.CoreService;
-import org.onosproject.mastership.MastershipService;
+import org.onosproject.event.AbstractListenerManager;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
-import org.onosproject.net.device.DeviceService;
-import org.onosproject.net.host.HostService;
-import org.onosproject.net.packet.PacketService;
 import org.onosproject.store.serializers.KryoNamespaces;
-import org.onosproject.store.service.EventuallyConsistentMap;
-import org.onosproject.store.service.LogicalClockService;
-import org.onosproject.store.service.StorageService;
+import org.onosproject.store.service.*;
 import org.onosproject.vtnrsc.VirtualPortId;
-import org.onosproject.vtnrsc.tenantnetwork.TenantNetworkService;
-import org.onosproject.vtnrsc.virtualport.VirtualPortService;
 import org.slf4j.Logger;
 
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.iris4sdn.csdncm.vnetmanager.OpenstackNode.State.*;
@@ -34,14 +35,12 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 @Component(immediate = true)
 @Service
-public class NodeManager implements NodeManagerService {
+public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayListener>
+        implements NodeManagerService, GatewayService {
     private final Logger log = getLogger(getClass());
 
     private static final String OPENSTACK_NODE_NOT_NULL = "Openstack node cannot be null";
     private static final String EVENT_NOT_NULL = "VirtualMachine event cannot be null";
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected DeviceService deviceService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected CoreService coreService;
@@ -50,25 +49,7 @@ public class NodeManager implements NodeManagerService {
     protected StorageService storageService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected TenantNetworkService tenantNetworkService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected VirtualPortService virtualPortService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected LogicalClockService clockService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected MastershipService mastershipService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected HostService hostService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected PacketService packetService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected VirtualMachineService virtualMachineService;
 
     private static final BridgeHandler bridgeHandler = BridgeHandler.bridgeHandler();
     private static L2RuleInstaller installer;
@@ -77,14 +58,19 @@ public class NodeManager implements NodeManagerService {
     private static final String GATEWAY = "multi-gateway";
     private static final String CONTROLLER_IP_KEY = "ipaddress";
     private EventuallyConsistentMap<OpenstackNodeId, OpenstackNode> nodeStore;
-    private EventuallyConsistentMap<Gateway, PortNumber> gatewayStore;
+    private EventuallyConsistentMap<OpenstackNodeId, Gateway> gatewayStore;
+    private PortNumber gatewayPortNumber;
 
+    private EventuallyConsistentMapListener<OpenstackNodeId, Gateway> gatewayListener =
+            new InnerGatewayListener();
 
     @Activate
     public void activate() {
+        eventDispatcher.addSink(GatewayEvent.class,listenerRegistry);
         KryoNamespace.Builder serializer = KryoNamespace.newBuilder()
                 .register(KryoNamespaces.API)
                 .register(OpenstackNodeId.class)
+                .register(Gateway.class)
                 .register(VirtualMachineId.class);
 
         nodeStore = storageService
@@ -94,10 +80,12 @@ public class NodeManager implements NodeManagerService {
                 .build();
 
         gatewayStore = storageService
-                .<Gateway, PortNumber>eventuallyConsistentMapBuilder()
+                .<OpenstackNodeId, Gateway>eventuallyConsistentMapBuilder()
                 .withName(GATEWAY).withSerializer(serializer)
                 .withTimestampProvider((k, v) -> clockService.getTimestamp())
                 .build();
+
+        gatewayStore.addListener(gatewayListener);
 
 //        vmStore = storageService
 //                .<Ip4Address, MacAddress>eventuallyConsistentMapBuilder()
@@ -114,16 +102,29 @@ public class NodeManager implements NodeManagerService {
     }
 
     @Override
-    public void addGateway(Gateway gateway) {
-        //create gateway
-        nodeStore.values().stream()
-                .filter(e -> e.getState().containsAll(EnumSet.of(BRIDGE_CREATED)))
-                .forEach(e -> {
-                    bridgeHandler.createGatewayTunnel(e, gateway);
-                    gatewayStore.put(gateway, gateway.getGatewayPortNumber());
-                });
+    public void addGateway(List<Gateway> gatewayList) {
+        for (Gateway gateway : gatewayList) {
+            if(gatewayStore.containsKey(gateway.id())) {
+                log.info("Remove pre-configured openstack gateway {} ", gateway.id());
+                gatewayStore.remove(gateway.id());
+            }
+
+            gatewayStore.put(gateway.id(), gateway);
+
+
+        }
     }
 
+
+    @Override
+    public void setGatewayPortNumber(PortNumber portNumber) {
+        gatewayPortNumber = portNumber;
+    }
+
+    @Override
+    public PortNumber getGatewayPortNumber() {
+        return gatewayPortNumber;
+    }
 
     @Override
     public void deleteGateway(Gateway gateway) {
@@ -131,33 +132,12 @@ public class NodeManager implements NodeManagerService {
                 .filter(e -> e.getState().containsAll(EnumSet.of(GATEWAY_CREATED)))
                 .forEach(e -> {
                     //TODO : destroyGatewayTunnel
-                    gatewayStore.remove(gateway);
+                    gatewayStore.remove(gateway.id());
                 });
     }
 
     @Override
-    public Gateway getGateway(PortNumber inPort){
-        return gatewayStore.keySet().stream()
-                .filter(e -> {
-                    if(gatewayStore.get(e).equals(inPort)) {
-                        log.info("!!! {}", gatewayStore.get(e));
-                        log.info("inport {}", inPort);
-                        return true;
-                    } else {
-                        log.info("~~~~~~~~~~~ {}", gatewayStore.get(e));
-                        log.info("inport {}", inPort);
-                        return false;
-                    }
-                })
-                .findFirst().orElse(null);
-    }
-
-    @Override
     public Iterable<Gateway> getGateways() {
-        return Collections.unmodifiableCollection(gatewayStore.keySet());
-    }
-    @Override
-    public Iterable<PortNumber> getGatewayPorts() {
         return Collections.unmodifiableCollection(gatewayStore.values());
     }
 
@@ -210,6 +190,32 @@ public class NodeManager implements NodeManagerService {
                 .filter(e -> e.getState().containsAll(EnumSet.of(BRIDGE_CREATED)))
                 .filter(e -> e.getVirutalPortNumber(virtualPortId) != null)
                 .findFirst().orElse(null);
+    }
+
+
+    private class InnerGatewayListener
+            implements
+            EventuallyConsistentMapListener<OpenstackNodeId, Gateway> {
+
+        @Override
+        public void event(EventuallyConsistentMapEvent<OpenstackNodeId,Gateway> event) {
+            checkNotNull(event, EVENT_NOT_NULL);
+            Gateway gateway = event.value();
+            if (EventuallyConsistentMapEvent.Type.PUT == event.type()) {
+                notifyListeners(new GatewayEvent(
+                        GatewayEvent.Type.GATEWAY_PUT, gateway));
+            }
+            if (EventuallyConsistentMapEvent.Type.REMOVE == event.type()) {
+                notifyListeners(new GatewayEvent(
+                        GatewayEvent.Type.GATEWAY_REMOVE, gateway));
+            }
+        }
+    }
+
+
+    private void notifyListeners(GatewayEvent event) {
+        checkNotNull(event, EVENT_NOT_NULL);
+        post(event);
     }
 
 }

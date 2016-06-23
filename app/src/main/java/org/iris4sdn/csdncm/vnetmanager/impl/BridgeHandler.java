@@ -17,7 +17,7 @@ package org.iris4sdn.csdncm.vnetmanager.impl;
 
 
 import org.iris4sdn.csdncm.tunnelmanager.TunnelManagerService;
-import org.iris4sdn.csdncm.vnetmanager.Gateway;
+import org.iris4sdn.csdncm.vnetmanager.gateway.Gateway;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onlab.osgi.ServiceDirectory;
 import org.onlab.packet.IpAddress;
@@ -61,6 +61,7 @@ public final class BridgeHandler {
     private static final String EX_BRIDGE_NAME = "br-ex";
     private static final String PATCH_PORT_EX_NAME = "patch-br-ex";
     private static final String PATCH_PORT_INT_NAME = "patch-br-int";
+    private static final String DEFAULT_GATEWAY_IP = "0.0.0.0";
     private static final String EX_PORT_NAME= "eth0";
     private static final int OVSDB_PORT = 6640;
 
@@ -227,14 +228,14 @@ public final class BridgeHandler {
 
         DeviceId deviceId = node.getOvsdbId();
         IpAddress srcIpAddress = node.getDataNetworkIp();
-        IpAddress dstIpAddress = gateway.getDataNetworkIp();
+        IpAddress dstIpAddress = IpAddress.valueOf(DEFAULT_GATEWAY_IP);//gateway.getDataNetworkIp();
 
         tunnelManagerService.createTunnel(deviceId, srcIpAddress, dstIpAddress);
 
         PortNumber port = null;
 
         for (int i = 0; i < 10; i++) {
-            port = getPortNumber(deviceId, dstIpAddress.toString());
+            port = getPortNumber(deviceId, "0.0.0.0");
             if (port == null) {
                 try {
                     // Need to wait for synchronising
@@ -249,7 +250,7 @@ public final class BridgeHandler {
         }
 
         if (port == null) {
-            log.error("Tunnel create failed at {}", node.id());
+            log.error("Gateway Tunnel create failed at {}", node.id());
             return ;
         }
 

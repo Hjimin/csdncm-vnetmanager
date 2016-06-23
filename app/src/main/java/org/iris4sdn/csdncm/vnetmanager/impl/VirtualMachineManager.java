@@ -1,6 +1,7 @@
 package org.iris4sdn.csdncm.vnetmanager.impl;
 
 import org.iris4sdn.csdncm.vnetmanager.virtualmachine.*;
+import org.onlab.packet.Ip4Address;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.event.AbstractListenerManager;
 import org.onosproject.store.serializers.KryoNamespaces;
@@ -86,6 +87,14 @@ public class VirtualMachineManager extends AbstractListenerManager<VirtualMachin
     @Override
     public Iterable<VirtualMachine> getVirtualMachines(){
         return Collections.unmodifiableCollection(this.vmStore.values());
+    }
+
+
+    @Override
+    public VirtualMachine getVirtualMachineByIp(Ip4Address vmIp){
+       return vmStore.values().stream()
+               .filter(vm -> vm.ipAddress().equals(vmIp.toString()))
+               .findFirst().orElse(null);
     }
 
     private class InnerVirtualMachineStoreListener

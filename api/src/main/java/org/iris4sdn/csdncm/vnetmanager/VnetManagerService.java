@@ -1,7 +1,7 @@
 package org.iris4sdn.csdncm.vnetmanager;
 
 public interface VnetManagerService {
-//    String VNETMANAGER_APP_ID = "org.onosproject.vnetmanager";
+    String VNETMANAGER_APP_ID = "org.onosproject.vnetmanager";
 //
 //    void addGateway(Gateway gateway);
 //    void deleteGateway(Gateway gateway);
