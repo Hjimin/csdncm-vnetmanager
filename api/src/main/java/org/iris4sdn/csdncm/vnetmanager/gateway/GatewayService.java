@@ -1,5 +1,6 @@
 package org.iris4sdn.csdncm.vnetmanager.gateway;
 
+import org.iris4sdn.csdncm.vnetmanager.OpenstackNode;
 import org.onosproject.event.ListenerService;
 import org.onosproject.net.PortNumber;
 
@@ -11,7 +12,8 @@ public interface GatewayService
 //    boolean addGateway(Iterable<Gateway> gateways);
 //
 //    boolean deleteGateway(Iterable<OpenstackNodeId> gatewayIds);
-
+    boolean checkForUpdate(OpenstackNode node);
+    void setUpdate(boolean updated);
 
 
     Iterable<Gateway> getGateways();

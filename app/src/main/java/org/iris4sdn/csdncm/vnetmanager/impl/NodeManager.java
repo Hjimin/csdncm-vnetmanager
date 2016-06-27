@@ -62,6 +62,7 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
 
     private EventuallyConsistentMapListener<OpenstackNodeId, Gateway> gatewayListener =
             new InnerGatewayListener();
+    private static boolean updated = false;
 
     @Activate
     public void activate() {
@@ -107,10 +108,7 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
                 log.info("Remove pre-configured openstack gateway {} ", gateway.id());
                 gatewayStore.remove(gateway.id());
             }
-
             gatewayStore.put(gateway.id(), gateway);
-
-
         }
     }
 
@@ -129,12 +127,27 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
         return gatewayStore.values().stream()
                 .filter(gateway -> {
                     if (gateway.getGatewayPortNumber().toString().equals(inPort.toString())) {
+                        log.info("gateway port {}", gateway.getGatewayPortNumber().toString());
+                        log.info("inport {}", inPort.toString());
                         return true;
                     } else {
                         return false;
                     }
                 })
                 .findFirst().orElse(null);
+    }
+
+
+    @Override
+    public boolean checkForUpdate(OpenstackNode node){
+        if(node.getState().contains(GATEWAY_GROUP_CREATED))
+            return true;
+        return false;
+    }
+
+    @Override
+    public void setUpdate(boolean updated){
+        this.updated = updated;
     }
 
     @Override

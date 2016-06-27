@@ -301,11 +301,11 @@ public class VnetManager implements VnetManagerService {
 
     public void processGateway(Gateway gateway, Objective.Operation type) {
         Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
-                .filter(e -> e.getState().containsAll(EnumSet.of(BRIDGE_CREATED)))
+//                .filter(e -> e.getState().containsAll(EnumSet.of(BRIDGE_CREATED)))
                 .forEach(node -> {
                     bridgeHandler.createGatewayTunnel(node, gateway);
-                    installGroupTableRule(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                            type);
+//                    installGroupTableRule(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
+//                            type);
                 });
 
     }
@@ -328,7 +328,12 @@ public class VnetManager implements VnetManagerService {
             return;
         }
 
-        VirtualPort virtualPort = configureVirtualPort(host, node, type);
+        VirtualPort virtualPort = null;
+        try {
+            virtualPort = configureVirtualPort(host, node, type);
+        } catch (Exception e) {
+            log.info("AAAAAAAAAAAAAAAAAAAAAAAA 3 {}", e.toString());
+        }
 
         if (virtualPort == null) {
             log.error("Could not find virutal port of the host {}", host.toString());
@@ -356,6 +361,7 @@ public class VnetManager implements VnetManagerService {
         }
 
         VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
+
         if (type.equals(Objective.Operation.ADD)) {
             PortNumber portNumber = host.location().port();
             VirtualPort virtualPort = virtualPortService.getPort(virtualPortId);
@@ -389,34 +395,16 @@ public class VnetManager implements VnetManagerService {
     }
 
 
-    private void installGroupTableRule(DeviceId deviceId,
-                                  Objective.Operation type) {
+    private void installGroupTableRule(DeviceId deviceId, Objective.Operation type) {
         if (type.equals(Objective.Operation.REMOVE)) {
             return;
         }
         List<GroupBucket> buckets = Lists.newArrayList();
         Sets.newHashSet(gatewayService.getGateways()).stream().forEach(gateway -> {
-//            Ip4Address dst = Ip4Address.valueOf(gateway.getDataNetworkIp().toString());
-
             TrafficTreatment.Builder builder = DefaultTrafficTreatment.builder();
-
-//            DriverHandler handler = driverService.createHandler(deviceId);
-//            ExtensionTreatmentResolver resolver = handler.behaviour(ExtensionTreatmentResolver.class);
-//            ExtensionTreatment treatment = resolver
-//                    .getExtensionInstruction(ExtensionTreatmentType.ExtensionTreatmentTypes
-//                            .NICIRA_SET_TUNNEL_DST.type());
-//            try {
-//                treatment.setPropertyValue("tunnelDst", dst);
-//            } catch (Exception e) {
-//                log.error("Failed to get extension instruction to set tunnel dst {}", deviceId);
-//            }
-
             short weight = gateway.getWeight();
-
-//            builder.extension(treatment, deviceId);
             builder.setOutput(gateway.getGatewayPortNumber());
             GroupBucket bucket = DefaultGroupBucket
-//                    .createSelectGroupBucket(builder.build());
                     .createSelectGroupBucket(builder.build(), weight);
             buckets.add(bucket);
         });
@@ -428,6 +416,7 @@ public class VnetManager implements VnetManagerService {
                 key, 1, appId);
         groupService.addGroup(groupDescription);
     }
+
     private void installUnicastInRule(OpenstackNode node, VirtualPort port,
                                       Objective.Operation type) {
         log.info("Install unicast inward flow");
@@ -511,21 +500,19 @@ public class VnetManager implements VnetManagerService {
         Set<PortNumber> tunnelPorts = Sets.newHashSet(node.getTunnelPortNumbers());
         Set<PortNumber> virtualPorts =
                 Sets.newHashSet(node.getVirutalPortNumbers(segmentationId));
-//        Set<PortNumber> gatewayPorts = new HashSet<>();
 //        Sets.newHashSet(nodeManagerService.getGatewayPorts()).stream().forEach(e -> gatewayPorts.add(e));
 
         // Add local virtual ports & tunnel ports for entire out ports
         allPorts.addAll(virtualPorts);
         allPorts.addAll(tunnelPorts);
-//        allPorts.addAll(gatewayPorts);
-
-        // Virtual ports broadcast to all ports
-//        virtualPorts.stream().forEach(e -> {
-
 
 
         Gateway gateway = Sets.newHashSet(gatewayService.getGateways()).stream().findFirst().orElse(null);
         if(gateway != null) {
+            if(!gatewayService.checkForUpdate(node)) {
+                installGroupTableRule(node.getBridgeId(Bridge.BridgeType.INTEGRATION), type);
+                node.applyState(GATEWAY_GROUP_CREATED);
+            }
             installer.programBroadcastWithGroup(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                     segmentationId, allPorts, type);
 
@@ -554,7 +541,6 @@ public class VnetManager implements VnetManagerService {
             virtualPorts.remove(portNumber);
             tunnelPorts.remove(portNumber);
             allPorts.remove(portNumber);
-
 //            virtualPorts.stream().forEach(e -> {
 //                installer.programBroadcast(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
 //                        segmentationId, e, allPorts, Objective.Operation.ADD);
@@ -566,12 +552,9 @@ public class VnetManager implements VnetManagerService {
 //                            segmentationId, e, virtualPorts, Objective.Operation.ADD);
 //                });
 //            }
-
-
-
         }
     }
-//
+
 //    private void processVirtualMachine(VirtualMachine vm, Objective.Operation operation) {
 //        log.info("VirtualMachine {} processed", vm);
 //        // For remote Openstack VMs beyond gateway
@@ -584,18 +567,11 @@ public class VnetManager implements VnetManagerService {
 //    }
 
 
-
-    private Gateway chooseGateway(Ip4Address ip4Address){
-
-        return null;
-    }
-
     private void processArp(ARP arpPacket, PortNumber inPort) {
         MacAddress targetHostMac = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
         MacAddress senderHostMac = MacAddress.valueOf(arpPacket.getSenderHardwareAddress());
         Ip4Address targetIp = Ip4Address.valueOf(arpPacket.getTargetProtocolAddress());
         Ip4Address senderIp = Ip4Address.valueOf(arpPacket.getSenderProtocolAddress());
-
 
 //        if(!targetHostMac.toString().equals(MacAddress.valueOf("ff:ff:ff:ff:ff:ff").toString())) {
 //            return;
@@ -606,7 +582,6 @@ public class VnetManager implements VnetManagerService {
             Host host = hosts.next();
             String ifaceId = host.annotations().value(IFACEID);
             if (ifaceId == null) {
-                log.error("The ifaceId of Host is null");
                 return;
             }
 
@@ -616,6 +591,7 @@ public class VnetManager implements VnetManagerService {
             SegmentationId segmentationId = tenantNetwork.segmentationId();
 
             Gateway gateway = gatewayService.getGateway(inPort);
+            log.info("!!!!!!!!!!!!!!!@@@@@@@@@@@@@@@@@@@@@@2gateway {}", gateway);
 
             Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().contains(GATEWAY_CREATED))
@@ -628,6 +604,7 @@ public class VnetManager implements VnetManagerService {
                 });
         }
     }
+
 //    private void processArp(ARP arpPacket, PortNumber inPort) {
 //        MacAddress targetHostMac = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
 //        MacAddress senderHostMac = MacAddress.valueOf(arpPacket.getSenderHardwareAddress());

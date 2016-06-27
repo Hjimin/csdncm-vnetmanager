@@ -51,6 +51,7 @@ public class OpenstackNode {
         EXTERNAL_BRIDGE_DETECTED,
         INTEGRATION_BRIDGE_DETECTED,
         GATEWAY_CREATED,
+        GATEWAY_GROUP_CREATED,
         TUNNEL_CREATED,
     }
 

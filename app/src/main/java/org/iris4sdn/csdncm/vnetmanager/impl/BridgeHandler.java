@@ -255,7 +255,6 @@ public final class BridgeHandler {
 
         // Save tunnel port which mapped to Openstack node otherside.
         //node.addTunnelPortNumber(gateway.id(), port);
-log.info("port~!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! {}", port);
         gateway.setGatewayPortNumber(port);
         gateway.setBridgeId(deviceId, Bridge.BridgeType.INTEGRATION);
 //        node.setGatewayTunnelPortNumber(port);
