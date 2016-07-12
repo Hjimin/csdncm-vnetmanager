@@ -17,7 +17,8 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 @Component(immediate = true)
 @Service
-public class VirtualMachineManager extends AbstractListenerManager<VirtualMachineEvent, VirtualMachineListener> implements VirtualMachineService {
+public class VirtualMachineManager extends AbstractListenerManager<VirtualMachineEvent, VirtualMachineListener>
+        implements VirtualMachineService {
     private final Logger log = getLogger(getClass());
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
@@ -69,6 +70,17 @@ public class VirtualMachineManager extends AbstractListenerManager<VirtualMachin
             }
         }
         return true;
+    }
+
+    @Override
+    public void addVirtualMachine(VirtualMachine vm) {
+        checkNotNull(vm, VM_NOT_NULL);
+        vmStore.put(vm.id(), vm);
+            if (!vmStore.containsKey(vm.id())) {
+                log.debug("The VirtualMachine is created failed whose identifier is {} ",
+                        vm.id());
+                return;
+            }
     }
 
     @Override

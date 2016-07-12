@@ -7,6 +7,7 @@ public interface VirtualMachineService
         extends ListenerService<VirtualMachineEvent,VirtualMachineListener> {
 
     boolean addVirtualMachine(Iterable<VirtualMachine> vms);
+    void addVirtualMachine(VirtualMachine vm);
 
     boolean deleteVirtualMachine(Iterable<VirtualMachineId> vmIds);
 

@@ -24,13 +24,6 @@ public class GatewayConfig extends AbstractWebResource {
     private final Logger log = LoggerFactory.getLogger(GatewayConfig.class);
     GatewayService gatewayService = getService(GatewayService.class);
 
-    @GET
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response listGateway() {
-        log.info("hahahahahhahhahahahahahahhahahahhahahah");
-        return Response.status(Response.Status.OK).entity("haha").build();
-    }
-
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
@@ -63,6 +56,12 @@ public class GatewayConfig extends AbstractWebResource {
 
         while(gateways.hasNext()) {
             JsonNode gateway = gateways.next();
+            if (!gateway.hasNonNull("gatewayName")) {
+                throw new IllegalArgumentException("gatewayName should not be null");
+            } else if (gateway.get("gatewayName").asText().isEmpty()) {
+                throw new IllegalArgumentException("gatewayName should not be empty");
+            }
+            String gatewayName = gateway.get("gatewayName").asText();
 
             if (!gateway.hasNonNull("macAddress")) {
                 throw new IllegalArgumentException("macAddress should not be null");
@@ -70,13 +69,6 @@ public class GatewayConfig extends AbstractWebResource {
                 throw new IllegalArgumentException("macAddress should not be empty");
             }
             MacAddress macAddress = MacAddress.valueOf(gateway.get("macAddress").asText());
-
-            if (!gateway.hasNonNull("gatewayName")) {
-                throw new IllegalArgumentException("gatewayName should not be null");
-            } else if (gateway.get("gatewayName").asText().isEmpty()) {
-                throw new IllegalArgumentException("gatewayName should not be empty");
-            }
-            String gatewayName = gateway.get("gatewayName").asText();
 
             if (!gateway.hasNonNull("dataNetworkIp")) {
                 throw new IllegalArgumentException("dataNetworkIp should not be null");
@@ -92,7 +84,14 @@ public class GatewayConfig extends AbstractWebResource {
             }
             short weight = (short) gateway.get("weight").asInt();
 
-            Gateway default_gateway = new Gateway(gatewayName, macAddress, dataNetworkIp, weight);
+            if (!gateway.hasNonNull("active")) {
+                throw new IllegalArgumentException("active should not be null");
+            } else if (gateway.get("active").asInt() < 0) {
+                throw new IllegalArgumentException("active should not be under zero");
+            }
+            String active = gateway.get("active").asText();
+
+            Gateway default_gateway = new Gateway(gatewayName, macAddress, dataNetworkIp, weight, active);
             gatewayList.add(default_gateway);
         }
 

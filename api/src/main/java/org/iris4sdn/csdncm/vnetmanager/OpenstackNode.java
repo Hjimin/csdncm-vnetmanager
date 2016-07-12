@@ -70,6 +70,7 @@ public class OpenstackNode {
     private final Map<VirtualPortId, PortNumber> virtualPortNumbers = new HashMap<>();
     private final Map<VirtualPortId, SegmentationId> segmentationIds = new HashMap<>();
     private final Map<OpenstackNodeId, PortNumber> tunnelPortNumbers  = new HashMap<>();
+    private final Map<OpenstackNodeId, PortNumber> gatewayTunnelPortNumbers  = new HashMap<>();
     private final Map<SegmentationId, Set<VirtualPort>> tenantVirtualPorts = new HashMap<>();
 
     // Configuration information
@@ -192,6 +193,7 @@ public class OpenstackNode {
         virtualPortNumbers.clear();
         segmentationIds.clear();
         tunnelPortNumbers.clear();
+        gatewayTunnelPortNumbers.clear();
         tenantVirtualPorts.clear();
 
         applyState(State.CONFIGURED);
@@ -297,9 +299,20 @@ public class OpenstackNode {
         tunnelPortNumbers.putIfAbsent(id, portNumber);
     }
 
+    public void addGatewayTunnelPortNumber(OpenstackNodeId id, PortNumber portNumber) {
+        checkNotNull(id);
+        checkNotNull(portNumber);
+        gatewayTunnelPortNumbers.putIfAbsent(id, portNumber);
+    }
+
     public void removeTunnelPortNumber(OpenstackNodeId id) {
         checkNotNull(id);
         tunnelPortNumbers.remove(id);
+    }
+
+    public void removeGatewayTunnelPortNumber(OpenstackNodeId id) {
+        checkNotNull(id);
+        gatewayTunnelPortNumbers.remove(id);
     }
 
     public PortNumber getTunnelPortNumber(OpenstackNodeId id) {
@@ -307,8 +320,18 @@ public class OpenstackNode {
         return tunnelPortNumbers.get(id);
     }
 
+    public PortNumber getGatewayTunnelPortNumber(OpenstackNodeId id) {
+        checkNotNull(id);
+        return gatewayTunnelPortNumbers.get(id);
+    }
+
     public Set<PortNumber> getTunnelPortNumbers() {
         return Collections.unmodifiableSet(tunnelPortNumbers.values()
+                .stream().collect(Collectors.toSet()));
+    }
+
+    public Set<PortNumber> getGatewayTunnelPortNumbers() {
+        return Collections.unmodifiableSet(gatewayTunnelPortNumbers.values()
                 .stream().collect(Collectors.toSet()));
     }
 

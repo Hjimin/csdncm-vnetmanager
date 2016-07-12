@@ -19,5 +19,8 @@
         <command>
             <action class="org.iris4sdn.csdncm.vnetmanager.cli.OpenstackNodeListCommand"/>
         </command>
+        <command>
+            <action class="org.iris4sdn.csdncm.vnetmanager.cli.GatewayListCommand"/>
+        </command>
     </command-bundle>
 </blueprint>

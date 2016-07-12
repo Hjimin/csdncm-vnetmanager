@@ -15,7 +15,6 @@ import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayListener;
 import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayService;
 import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachineId;
 import org.onlab.util.KryoNamespace;
-import org.onosproject.core.CoreService;
 import org.onosproject.event.AbstractListenerManager;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
@@ -29,7 +28,8 @@ import java.util.EnumSet;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.iris4sdn.csdncm.vnetmanager.OpenstackNode.State.*;
+import static org.iris4sdn.csdncm.vnetmanager.OpenstackNode.State.BRIDGE_CREATED;
+import static org.iris4sdn.csdncm.vnetmanager.OpenstackNode.State.CONFIGURED;
 import static org.slf4j.LoggerFactory.getLogger;
 
 
@@ -43,26 +43,19 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
     private static final String EVENT_NOT_NULL = "VirtualMachine event cannot be null";
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    protected CoreService coreService;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected StorageService storageService;
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected LogicalClockService clockService;
 
-    private static final BridgeHandler bridgeHandler = BridgeHandler.bridgeHandler();
-    private static L2RuleInstaller installer;
-    private static final String IFACEID = "ifaceid";
     private static final String OPENSTACK_NODES = "openstack-nodes";
     private static final String GATEWAY = "multi-gateway";
-    private static final String CONTROLLER_IP_KEY = "ipaddress";
     private EventuallyConsistentMap<OpenstackNodeId, OpenstackNode> nodeStore;
     private EventuallyConsistentMap<OpenstackNodeId, Gateway> gatewayStore;
 
     private EventuallyConsistentMapListener<OpenstackNodeId, Gateway> gatewayListener =
             new InnerGatewayListener();
-    private static boolean updated = false;
+//    private GatewayListener gatewayListener = new InnerGatewayListener();
 
     @Activate
     public void activate() {
@@ -87,12 +80,6 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
 
         gatewayStore.addListener(gatewayListener);
 
-//        vmStore = storageService
-//                .<Ip4Address, MacAddress>eventuallyConsistentMapBuilder()
-//                .withName(GATEWAY).withSerializer(serializer)
-//                .withTimestampProvider((k, v) -> clockService.getTimestamp())
-//                .build();
-
         log.info("Started~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     }
 
@@ -104,50 +91,69 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
     @Override
     public void addGateway(List<Gateway> gatewayList) {
         for (Gateway gateway : gatewayList) {
-            if(gatewayStore.containsKey(gateway.id())) {
-                log.info("Remove pre-configured openstack gateway {} ", gateway.id());
+            if(!gateway.isActive()) {
                 gatewayStore.remove(gateway.id());
+                continue;
+            }
+            if(gatewayStore.containsKey(gateway.id())) {
+                if(checkGatewayUpdate(gateway, gatewayList)) {
+                    log.info("Remove pre-configured openstack gateway {} ", gateway.id());
+                    gatewayStore.remove(gateway.id());
+                    gatewayStore.put(gateway.id(), gateway);
+                }
+                continue;
             }
             gatewayStore.put(gateway.id(), gateway);
         }
     }
 
-    @Override
-    public void deleteGateway(Gateway gateway) {
-        nodeStore.values().stream()
-                .filter(e -> e.getState().containsAll(EnumSet.of(GATEWAY_CREATED)))
-                .forEach(e -> {
-                    //TODO : destroyGatewayTunnel
-                    gatewayStore.remove(gateway.id());
-                });
+    private boolean checkGatewayUpdate(Gateway gateway, List<Gateway> gatewayList) {
+        Gateway old_gateway = gatewayStore.get(gateway.id());
+
+        if(!old_gateway.getDataNetworkIp().toString().equals(gateway.getDataNetworkIp().toString())) {
+            log.info("old_gateway {}", old_gateway.getDataNetworkIp().toString());
+            log.info("gateway {}", gateway.getDataNetworkIp().toString());
+            gateway.update(true);
+//            notifyListeners(new GatewayEvent(GatewayEvent.Type.GATEWAY_UPDATE, gatewayList));
+            return true;
+        }
+
+        if(old_gateway.getWeight() != gateway.getWeight()) {
+            log.info("old_gateway {}", old_gateway.getWeight());
+            log.info("gateway {}", gateway.getWeight());
+            gateway.update(true);
+//            notifyListeners(new GatewayEvent(GatewayEvent.Type.GATEWAY_UPDATE, gatewayList));
+            return true;
+        }
+
+        if(!old_gateway.macAddress().toString().equals(gateway.macAddress().toString())) {
+            log.info("old_gateway {}", old_gateway.macAddress().toString());
+            log.info("gateway {}", gateway.macAddress().toString());
+            gateway.update(true);
+//            notifyListeners(new GatewayEvent(GatewayEvent.Type.GATEWAY_UPDATE, gatewayList));
+            return true;
+        }
+
+        gateway.update(false);
+        return false;
     }
+
 
     @Override
     public Gateway getGateway(PortNumber inPort){
         return gatewayStore.values().stream()
                 .filter(gateway -> {
-                    if (gateway.getGatewayPortNumber().toString().equals(inPort.toString())) {
+                    if (gateway.getGatewayPortNumber().toString().endsWith(inPort.toString()+")")) {
                         log.info("gateway port {}", gateway.getGatewayPortNumber().toString());
                         log.info("inport {}", inPort.toString());
                         return true;
                     } else {
+                        log.info("gateway port {}", gateway.getGatewayPortNumber().toString());
+                        log.info("inport {}", inPort.toString());
                         return false;
                     }
                 })
                 .findFirst().orElse(null);
-    }
-
-
-    @Override
-    public boolean checkForUpdate(OpenstackNode node){
-        if(node.getState().contains(GATEWAY_GROUP_CREATED))
-            return true;
-        return false;
-    }
-
-    @Override
-    public void setUpdate(boolean updated){
-        this.updated = updated;
     }
 
     @Override
@@ -225,7 +231,6 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
             }
         }
     }
-
 
     private void notifyListeners(GatewayEvent event) {
         checkNotNull(event, EVENT_NOT_NULL);

@@ -159,8 +159,8 @@ public class VirtualMachineWebResource extends AbstractWebResource {
                 }
                 MacAddress mac = MacAddress.valueOf(port.get("device_mac").asText());
 
-                VirtualMachine vm = new DefaultVirtualMachine(id, segmentationId,tenantId,
-                        ipAddress, name, mac, deviceId);
+                VirtualMachine vm = new DefaultVirtualMachine(id, segmentationId,
+                        ipAddress, mac);
 
                 vms.put(id, vm);
             }

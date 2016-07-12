@@ -316,7 +316,34 @@ public class L2RuleInstaller {
             flowObjectiveService.forward(deviceId, objective.remove());
         }
     }
+
+    public void programLocalInWithGateway(DeviceId deviceId,
+                                SegmentationId segmentationId, MacAddress dstMac,
+                                Objective.Operation type) {
+        log.info("Program flow toward local VMs");
+        TrafficSelector selector = DefaultTrafficSelector.builder()
+                .matchEthDst(dstMac).add(Criteria.matchTunnelId(Long
+                        .parseLong(segmentationId.toString())))
+                .build();
+
+        TrafficTreatment.Builder treatment = DefaultTrafficTreatment.builder();
+//                .setOutput(outPort);
+        treatment.group(new DefaultGroupId(1));
+
+        ForwardingObjective.Builder objective = DefaultForwardingObjective
+                .builder().withTreatment(treatment.build()).withSelector(selector)
+                .fromApp(appId).withFlag(ForwardingObjective.Flag.SPECIFIC)
+//                .withPriority(L2_CLASSIFIER_PRIORITY);
+        .withPriority(50000);
+        if (type.equals(Objective.Operation.ADD)) {
+            flowObjectiveService.forward(deviceId, objective.add());
+        } else {
+            flowObjectiveService.forward(deviceId, objective.remove());
+        }
+    }
+
     public void programLocalInGateway(DeviceId deviceId,
+
                                 SegmentationId segmentationId,
                                 PortNumber outPort, MacAddress dstMac,
                                 Objective.Operation type) {
@@ -388,6 +415,7 @@ public class L2RuleInstaller {
         log.info("Program flow toward local VMs from tunnel ports");
 
         TrafficSelector selector = DefaultTrafficSelector.builder()
+                .matchEthType(EthType.EtherType.ARP.ethType().toShort())
                 .matchInPort(inPort)
                 .build();
 

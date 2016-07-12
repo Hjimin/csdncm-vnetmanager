@@ -17,10 +17,10 @@ public final class VirtualMachineCodec extends JsonCodec<VirtualMachine> {
                 .createObjectNode()
                 .put("vm_id", vm.id().toString())
                 .put("segmentation_id", vm.segmentationId().toString())
-                .put("tenant_id",vm.tenantId().toString())
+//                .put("tenant_id",vm.tenantId().toString())
                 .put("device_ip", vm.ipAddress().toString())
-                .put("device_name", vm.name())
-                .put("device_id", vm.deviceId().toString())
+//                .put("device_name", vm.name())
+//                .put("device_id", vm.deviceId().toString())
                 .put("device_mac", vm.macAddress().toString());
         return result;
     }

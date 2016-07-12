@@ -254,7 +254,8 @@ public final class BridgeHandler {
         }
 
         // Save tunnel port which mapped to Openstack node otherside.
-        //node.addTunnelPortNumber(gateway.id(), port);
+//        node.addTunnelPortNumber(gateway.id(), port);
+        node.addGatewayTunnelPortNumber(gateway.id(), port);
         gateway.setGatewayPortNumber(port);
         gateway.setBridgeId(deviceId, Bridge.BridgeType.INTEGRATION);
 //        node.setGatewayTunnelPortNumber(port);
@@ -308,6 +309,18 @@ public final class BridgeHandler {
 
         log.info("Tunnel from " + srcNode.getDataNetworkIp() + " to "
                 + dstNode.getDataNetworkIp() + " created");
+    }
+
+    public void destroyGatewayTunnel(Gateway srcNode, OpenstackNode dstNode) {
+        tunnelManagerService.removeTunnel(dstNode.getOvsdbId(),
+                dstNode.getDataNetworkIp(), srcNode.getDataNetworkIp());
+
+        // Remove tunnel port which mapped to Openstack node otherside.
+//        srcNode.removeTunnelPortNumber(dstNode.id());
+        dstNode.removeGatewayTunnelPortNumber(srcNode.id());
+
+        log.info("Tunnel from " + srcNode.getDataNetworkIp() + " to "
+                + dstNode.getDataNetworkIp() + " destroyed" );
     }
 
     public void destroyTunnel(OpenstackNode srcNode, OpenstackNode dstNode) {

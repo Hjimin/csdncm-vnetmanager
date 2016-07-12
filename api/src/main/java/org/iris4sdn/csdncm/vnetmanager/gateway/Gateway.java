@@ -7,29 +7,26 @@ import org.onlab.packet.MacAddress;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import static com.google.common.base.Preconditions.checkNotNull;
 public class Gateway {
 
-    private String name;
+    private final String name;
     private DeviceId intBridgeId;
     private final MacAddress macAddress;
     private final short weight;
     private final IpAddress dataNetworkIp;
-    private final Set<PortNumber> gatewayPortNumbers = new HashSet<>();
     private PortNumber gatewayPortNumber;
     private final OpenstackNodeId nodeId;
+    private final String active;
+    private boolean update;
 
-    public Gateway(String name, MacAddress macAddress, IpAddress dataNetworkIp, short weight) {
+    public Gateway(String name, MacAddress macAddress, IpAddress dataNetworkIp, short weight, String active) {
         this.nodeId = OpenstackNodeId.valueOf(name);
         this.name = checkNotNull(name);
         this.macAddress = checkNotNull(macAddress);
         this.dataNetworkIp = checkNotNull(dataNetworkIp);
         this.weight = checkNotNull(weight);
+        this.active = active;
     }
 
     public OpenstackNodeId id() {
@@ -52,6 +49,22 @@ public class Gateway {
         return weight;
     }
 
+
+    public boolean isActive() {
+        if(active.equals("active")) {
+            return true;
+        } else if (active.equals("deactive")) {
+            return false;
+        }
+        return false;
+    }
+
+    public void update(boolean update) {
+        this.update = update;
+    }
+    public boolean isUpdated() {
+        return this.update;
+    }
     public void setBridgeId(DeviceId bridgeId, Bridge.BridgeType type) {
         checkNotNull(bridgeId);
         checkNotNull(type);
@@ -66,19 +79,10 @@ public class Gateway {
         return null;
     }
 
-    public void setGatewayTunnelPortNumber(PortNumber portNumber) {
-        checkNotNull(portNumber);
-        gatewayPortNumbers.add(portNumber);
-    }
-
     public void setGatewayPortNumber(PortNumber gatewayPortNumber) {
        this.gatewayPortNumber = gatewayPortNumber;
     }
     public PortNumber getGatewayPortNumber() {
         return gatewayPortNumber;
-    }
-    public Set<PortNumber> getGatewayPortNumbers() {
-        return Collections.unmodifiableSet(gatewayPortNumbers
-                .stream().collect(Collectors.toSet()));
     }
 }
