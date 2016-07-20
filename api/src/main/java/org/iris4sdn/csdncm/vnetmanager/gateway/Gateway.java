@@ -1,7 +1,6 @@
 package org.iris4sdn.csdncm.vnetmanager.gateway;
 
 import org.iris4sdn.csdncm.vnetmanager.Bridge;
-import org.iris4sdn.csdncm.vnetmanager.OpenstackNodeId;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
 import org.onosproject.net.DeviceId;
@@ -10,26 +9,28 @@ import org.onosproject.net.PortNumber;
 import static com.google.common.base.Preconditions.checkNotNull;
 public class Gateway {
 
-    private final String name;
+    private String name;
     private DeviceId intBridgeId;
-    private final MacAddress macAddress;
-    private final short weight;
-    private final IpAddress dataNetworkIp;
+    private MacAddress macAddress;
+    private short weight;
+    private IpAddress dataNetworkIp;
     private PortNumber gatewayPortNumber;
-    private final OpenstackNodeId nodeId;
-    private final String active;
-    private boolean update;
+    private final String nodeId;
+    private String state;
+    private boolean updated;
 
-    public Gateway(String name, MacAddress macAddress, IpAddress dataNetworkIp, short weight, String active) {
-        this.nodeId = OpenstackNodeId.valueOf(name);
+    public Gateway(String id, String name, MacAddress macAddress, IpAddress dataNetworkIp,
+                   short weight, String state, boolean updated) {
+        this.nodeId = checkNotNull(id);
         this.name = checkNotNull(name);
         this.macAddress = checkNotNull(macAddress);
         this.dataNetworkIp = checkNotNull(dataNetworkIp);
         this.weight = checkNotNull(weight);
-        this.active = active;
+        this.state = state;
+        this.updated = updated;
     }
 
-    public OpenstackNodeId id() {
+    public String id() {
         return nodeId;
     }
 
@@ -49,22 +50,51 @@ public class Gateway {
         return weight;
     }
 
+    public String getState() {
+        return state;
+    }
+
 
     public boolean isActive() {
-        if(active.equals("active")) {
+        if(state.equals("active")) {
             return true;
-        } else if (active.equals("deactive")) {
+        } else if (state.equals("deactive")) {
             return false;
         }
         return false;
     }
 
-    public void update(boolean update) {
-        this.update = update;
-    }
     public boolean isUpdated() {
-        return this.update;
+         if(updated) {
+            return true;
+        }
+        return false;
     }
+
+    public void changeName(String name){
+       this.name = name;
+    }
+
+    public void changeMac(MacAddress macAddress) {
+        this.macAddress = macAddress;
+    }
+
+    public void changeIp(IpAddress ipAddress) {
+        this.dataNetworkIp = ipAddress;
+    }
+
+    public void changeWeight(short weight) {
+        this.weight = weight;
+    }
+
+    public void changeState(String state) {
+        this.state = state;
+    }
+
+    public void changeUpdated(boolean updated) {
+        this.updated = updated;
+    }
+
     public void setBridgeId(DeviceId bridgeId, Bridge.BridgeType type) {
         checkNotNull(bridgeId);
         checkNotNull(type);

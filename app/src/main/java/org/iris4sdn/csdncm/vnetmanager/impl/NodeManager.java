@@ -14,10 +14,13 @@ import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayEvent;
 import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayListener;
 import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayService;
 import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachineId;
+import org.onlab.packet.IpAddress;
+import org.onlab.packet.MacAddress;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.event.AbstractListenerManager;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
+//import org.onosproject.store.se;
 import org.onosproject.store.serializers.KryoNamespaces;
 import org.onosproject.store.service.*;
 import org.onosproject.vtnrsc.VirtualPortId;
@@ -51,9 +54,9 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
     private static final String OPENSTACK_NODES = "openstack-nodes";
     private static final String GATEWAY = "multi-gateway";
     private EventuallyConsistentMap<OpenstackNodeId, OpenstackNode> nodeStore;
-    private EventuallyConsistentMap<OpenstackNodeId, Gateway> gatewayStore;
+    private EventuallyConsistentMap<String, Gateway> gatewayStore;
 
-    private EventuallyConsistentMapListener<OpenstackNodeId, Gateway> gatewayListener =
+    private EventuallyConsistentMapListener<String, Gateway> gatewayListener =
             new InnerGatewayListener();
 //    private GatewayListener gatewayListener = new InnerGatewayListener();
 
@@ -73,7 +76,7 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
                 .build();
 
         gatewayStore = storageService
-                .<OpenstackNodeId, Gateway>eventuallyConsistentMapBuilder()
+                .<String, Gateway>eventuallyConsistentMapBuilder()
                 .withName(GATEWAY).withSerializer(serializer)
                 .withTimestampProvider((k, v) -> clockService.getTimestamp())
                 .build();
@@ -89,14 +92,16 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
     }
 
     @Override
-    public void addGateway(List<Gateway> gatewayList) {
+    public void addGatewayList(List<Gateway> gatewayList) {
         for (Gateway gateway : gatewayList) {
             if(!gateway.isActive()) {
-                gatewayStore.remove(gateway.id());
+                if(gatewayStore.containsKey(gateway.id())) {
+                    gatewayStore.remove(gateway.id());
+                }
                 continue;
             }
             if(gatewayStore.containsKey(gateway.id())) {
-                if(checkGatewayUpdate(gateway, gatewayList)) {
+                if(gateway.isUpdated()){
                     log.info("Remove pre-configured openstack gateway {} ", gateway.id());
                     gatewayStore.remove(gateway.id());
                     gatewayStore.put(gateway.id(), gateway);
@@ -107,36 +112,79 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
         }
     }
 
-    private boolean checkGatewayUpdate(Gateway gateway, List<Gateway> gatewayList) {
-        Gateway old_gateway = gatewayStore.get(gateway.id());
-
-        if(!old_gateway.getDataNetworkIp().toString().equals(gateway.getDataNetworkIp().toString())) {
-            log.info("old_gateway {}", old_gateway.getDataNetworkIp().toString());
-            log.info("gateway {}", gateway.getDataNetworkIp().toString());
-            gateway.update(true);
-//            notifyListeners(new GatewayEvent(GatewayEvent.Type.GATEWAY_UPDATE, gatewayList));
-            return true;
+    @Override
+    public void createGateway(String id, String name, MacAddress macAddress, IpAddress dataNetworkIp,
+                              short weight, String state, boolean updated) {
+        if(state.equals("deactive")) {
+            if(gatewayStore.containsKey(id)) {
+                gatewayStore.remove(id);
+            }
+            return;
         }
 
-        if(old_gateway.getWeight() != gateway.getWeight()) {
-            log.info("old_gateway {}", old_gateway.getWeight());
-            log.info("gateway {}", gateway.getWeight());
-            gateway.update(true);
-//            notifyListeners(new GatewayEvent(GatewayEvent.Type.GATEWAY_UPDATE, gatewayList));
-            return true;
+        if(gatewayStore.containsKey(id)) {
+            Gateway gateway = gatewayStore.get(id);
+            if(updated) {
+                if(!gateway.getDataNetworkIp().toString().equals(dataNetworkIp.toString())) {
+                    gateway.changeIp(dataNetworkIp);
+                }
+
+                if(gateway.getWeight() != weight) {
+                    gateway.changeWeight(weight);
+                }
+
+                if(!gateway.macAddress().toString().equals(macAddress.toString())) {
+                    gateway.changeMac(macAddress);
+                }
+
+                if(!gateway.getState().equals(state)){
+                    gateway.changeState(state);
+                }
+
+                if(!gateway.gatewayName().equals(name)) {
+                    gateway.changeName(name);
+                }
+                notifyListeners(new GatewayEvent(GatewayEvent.Type.GATEWAY_UPDATE, gateway));
+            }
+            return;
         }
 
-        if(!old_gateway.macAddress().toString().equals(gateway.macAddress().toString())) {
-            log.info("old_gateway {}", old_gateway.macAddress().toString());
-            log.info("gateway {}", gateway.macAddress().toString());
-            gateway.update(true);
-//            notifyListeners(new GatewayEvent(GatewayEvent.Type.GATEWAY_UPDATE, gatewayList));
-            return true;
-        }
-
-        gateway.update(false);
-        return false;
+        Gateway gateway = new Gateway(id, name, macAddress, dataNetworkIp, weight, state, updated);
+        log.info("createGateway {}", gateway.toString());
+        gatewayStore.put(gateway.id(), gateway);
     }
+
+//    private boolean checkGatewayUpdate(Gateway gateway) {
+//        Gateway old_gateway = gatewayStore.get(gateway.id());
+//
+//        if(!old_gateway.getDataNetworkIp().toString().equals(gateway.getDataNetworkIp().toString())) {
+//            log.info("old_gateway {}", old_gateway.getDataNetworkIp().toString());
+//            log.info("gateway {}", gateway.getDataNetworkIp().toString());
+//            gateway.changeIp();
+////            gateway.update(true);
+////            notifyListeners(new GatewayEvent(GatewayEvent.Type.GATEWAY_UPDATE, gatewayList));
+//            return true;
+//        }
+//
+//        if(old_gateway.getWeight() != gateway.getWeight()) {
+//            log.info("old_gateway {}", old_gateway.getWeight());
+//            log.info("gateway {}", gateway.getWeight());
+////            gateway.update(true);
+////            notifyListeners(new GatewayEvent(GatewayEvent.Type.GATEWAY_UPDATE, gatewayList));
+//            return true;
+//        }
+//
+//        if(!old_gateway.macAddress().toString().equals(gateway.macAddress().toString())) {
+//            log.info("old_gateway {}", old_gateway.macAddress().toString());
+//            log.info("gateway {}", gateway.macAddress().toString());
+////            gateway.update(true);
+////            notifyListeners(new GatewayEvent(GatewayEvent.Type.GATEWAY_UPDATE, gatewayList));
+//            return true;
+//        }
+//
+////        gateway.update(false);
+//        return false;
+//    }
 
 
     @Override
@@ -144,12 +192,11 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
         return gatewayStore.values().stream()
                 .filter(gateway -> {
                     if (gateway.getGatewayPortNumber().toString().endsWith(inPort.toString()+")")) {
-                        log.info("gateway port {}", gateway.getGatewayPortNumber().toString());
-                        log.info("inport {}", inPort.toString());
+                        log.info("gateway {} ", gateway.getGatewayPortNumber());
+                        return true;
+                    } if (gateway.getGatewayPortNumber().toString().equals(inPort.toString())) {
                         return true;
                     } else {
-                        log.info("gateway port {}", gateway.getGatewayPortNumber().toString());
-                        log.info("inport {}", inPort.toString());
                         return false;
                     }
                 })
@@ -215,10 +262,10 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
 
     private class InnerGatewayListener
             implements
-            EventuallyConsistentMapListener<OpenstackNodeId, Gateway> {
+            EventuallyConsistentMapListener<String, Gateway> {
 
         @Override
-        public void event(EventuallyConsistentMapEvent<OpenstackNodeId,Gateway> event) {
+        public void event(EventuallyConsistentMapEvent<String, Gateway> event) {
             checkNotNull(event, EVENT_NOT_NULL);
             Gateway gateway = event.value();
             if (EventuallyConsistentMapEvent.Type.PUT == event.type()) {

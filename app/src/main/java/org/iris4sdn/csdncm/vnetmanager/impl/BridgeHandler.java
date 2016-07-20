@@ -17,6 +17,8 @@ package org.iris4sdn.csdncm.vnetmanager.impl;
 
 
 import org.iris4sdn.csdncm.tunnelmanager.TunnelManagerService;
+import org.iris4sdn.csdncm.vnetmanager.Bridge;
+import org.iris4sdn.csdncm.vnetmanager.OpenstackNode;
 import org.iris4sdn.csdncm.vnetmanager.gateway.Gateway;
 import org.onlab.osgi.DefaultServiceDirectory;
 import org.onlab.osgi.ServiceDirectory;
@@ -31,13 +33,12 @@ import org.onosproject.net.behaviour.BridgeName;
 import org.onosproject.net.config.NetworkConfigService;
 import org.onosproject.net.config.basics.BasicDeviceConfig;
 import org.onosproject.net.device.DeviceService;
+import org.onosproject.net.device.PortDescription;
 import org.onosproject.net.driver.DriverHandler;
 import org.onosproject.net.driver.DriverService;
 import org.onosproject.ovsdb.controller.OvsdbClientService;
 import org.onosproject.ovsdb.controller.OvsdbController;
 import org.onosproject.ovsdb.controller.OvsdbNodeId;
-import org.iris4sdn.csdncm.vnetmanager.Bridge;
-import org.iris4sdn.csdncm.vnetmanager.OpenstackNode;
 import org.slf4j.Logger;
 
 import java.util.Collection;
@@ -121,6 +122,12 @@ public final class BridgeHandler {
                 .findFirst().orElse(null);
     }
 
+    private PortDescription getPorts(DeviceId deviceId, String subString) {
+        DriverHandler handler = driverService.createHandler(deviceId);
+        BridgeConfig bridgeConfig = handler.behaviour(BridgeConfig.class);
+        return bridgeConfig.getPorts().stream().findFirst().orElse(null);
+    }
+
 //    public void updateBridge(OpenstackNode node, Bridge.BridgeType type) {
 //        String bridgeName = null;
 //        if (type == Bridge.BridgeType.INTEGRATION) {
@@ -176,49 +183,6 @@ public final class BridgeHandler {
         log.info("A new bridge {} is created in node {}", bridgeDeviceId, node.id());
     }
 
-    public void createGatewayTunnel(OpenstackNode node, OpenstackNode gateway) {
-        if (node.getState().contains(GATEWAY_CREATED)) {
-            log.info("Gateway already created at {}", node.id());
-            return ;
-        }
-
-        DeviceId deviceId = node.getOvsdbId();
-        IpAddress srcIpAddress = node.getDataNetworkIp();
-        IpAddress dstIpAddress = gateway.getDataNetworkIp();
-
-        tunnelManagerService.createTunnel(deviceId, srcIpAddress, dstIpAddress);
-
-        PortNumber port = null;
-
-        for (int i = 0; i < 10; i++) {
-            port = getPortNumber(deviceId, dstIpAddress.toString());
-            if (port == null) {
-                try {
-                    // Need to wait for synchronising
-                    Thread.sleep(500);
-                } catch (InterruptedException exeption) {
-                    log.warn("Interrupted while waiting to get bridge");
-                    Thread.currentThread().interrupt();
-                }
-            } else  {
-                break;
-            }
-        }
-
-        if (port == null) {
-            log.error("Tunnel create failed at {}", node.id());
-            return ;
-        }
-
-        // Save tunnel port which mapped to Openstack node otherside.
-        node.addTunnelPortNumber(gateway.id(), port);
-        node.setGatewayTunnelPortNumber(port);
-        node.applyState(GATEWAY_CREATED);
-
-        log.info("Tunnel from " + node.getDataNetworkIp() + " to "
-                + gateway.getDataNetworkIp() + " created" );
-    }
-
     public void createGatewayTunnel(OpenstackNode node, Gateway gateway) {
 //        if (node.getState().contains(GATEWAY_CREATED)) {
 //            log.info("Gateway already created at {}", node.id());
@@ -229,13 +193,14 @@ public final class BridgeHandler {
         IpAddress srcIpAddress = node.getDataNetworkIp();
         IpAddress dstIpAddress = gateway.getDataNetworkIp();
 
-        tunnelManagerService.createTunnel(deviceId, srcIpAddress, dstIpAddress);
+        tunnelManagerService.createTunnel(deviceId, srcIpAddress, dstIpAddress, gateway.id().toString());
 
         PortNumber port = null;
 
         for (int i = 0; i < 10; i++) {
-            port = getPortNumber(deviceId, dstIpAddress.toString());
+            port = getPortNumber(deviceId, gateway.id().toString());
             if (port == null) {
+                log.info("port is null");
                 try {
                     // Need to wait for synchronising
                     Thread.sleep(500);
@@ -272,8 +237,8 @@ public final class BridgeHandler {
         IpAddress srcIpAddress = srcNode.getDataNetworkIp();
         IpAddress dstIpAddress = dstNode.getDataNetworkIp();
 
-        tunnelManagerService.createTunnel(srcDeviceId, srcIpAddress, dstIpAddress);
-        tunnelManagerService.createTunnel(dstDeviceId, dstIpAddress, srcIpAddress);
+        tunnelManagerService.createTunnel(srcDeviceId, srcIpAddress, dstIpAddress, null);
+        tunnelManagerService.createTunnel(dstDeviceId, dstIpAddress, srcIpAddress, null);
 
         // WARN: port name format is already determined to "vxlan-[IP address of other side]"
         // ex. "vxlan-192.168.10.1" on 192.168.10.2
@@ -311,6 +276,25 @@ public final class BridgeHandler {
                 + dstNode.getDataNetworkIp() + " created");
     }
 
+//    public void destroyGatewayTunnel(Gateway srcNode, OpenstackNode dstNode, IpAddress old_ip) {
+//        tunnelManagerService.removeTunnel(dstNode.getOvsdbId(),
+//                dstNode.getDataNetworkIp(), old_ip);
+//
+//        // Remove tunnel port which mapped to Openstack node otherside.
+////        srcNode.removeTunnelPortNumber(dstNode.id());
+//        dstNode.removeGatewayTunnelPortNumber(srcNode.id());
+//
+//        log.info("Tunnel from " + srcNode.getDataNetworkIp() + " to "
+//                + old_ip + " destroyed" );
+//    }
+
+    public void removeOldGatewayTunnel(Gateway gateway, OpenstackNode dstNode) {
+        log.info("remove old gateway tunnel");
+        DeviceId dstDeviceId = dstNode.getOvsdbId();
+        String tunnelName = "vxlan-"+gateway.id();
+        tunnelManagerService.removeOldGatewayTunnel(dstDeviceId, tunnelName);
+    }
+
     public void destroyGatewayTunnel(Gateway srcNode, OpenstackNode dstNode) {
         tunnelManagerService.removeTunnel(dstNode.getOvsdbId(),
                 dstNode.getDataNetworkIp(), srcNode.getDataNetworkIp());
@@ -322,7 +306,6 @@ public final class BridgeHandler {
         log.info("Tunnel from " + srcNode.getDataNetworkIp() + " to "
                 + dstNode.getDataNetworkIp() + " destroyed" );
     }
-
     public void destroyTunnel(OpenstackNode srcNode, OpenstackNode dstNode) {
         tunnelManagerService.removeTunnel(dstNode.getOvsdbId(),
                 dstNode.getDataNetworkIp(), srcNode.getDataNetworkIp());

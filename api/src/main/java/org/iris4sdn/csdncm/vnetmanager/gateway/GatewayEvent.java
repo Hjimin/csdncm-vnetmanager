@@ -6,7 +6,7 @@ public class GatewayEvent extends AbstractEvent<GatewayEvent.Type, Gateway> {
     public enum Type {
         GATEWAY_PUT,
         GATEWAY_REMOVE,
-        GATEWAY_UPDATE
+        GATEWAY_UPDATE,
     }
 
     public GatewayEvent(Type type, Gateway gateway) {

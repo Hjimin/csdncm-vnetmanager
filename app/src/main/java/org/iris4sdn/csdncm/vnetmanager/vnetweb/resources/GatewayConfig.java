@@ -3,8 +3,6 @@ package org.iris4sdn.csdncm.vnetmanager.vnetweb.resources;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.google.common.collect.Lists;
-import org.iris4sdn.csdncm.vnetmanager.gateway.Gateway;
 import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayService;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.MacAddress;
@@ -12,17 +10,27 @@ import org.onosproject.rest.AbstractWebResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.ws.rs.*;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.InputStream;
 import java.util.Iterator;
-import java.util.List;
 
 @Path("/gateway")
 public class GatewayConfig extends AbstractWebResource {
     private final Logger log = LoggerFactory.getLogger(GatewayConfig.class);
     GatewayService gatewayService = getService(GatewayService.class);
+
+    private final String GW_ID = "gw_id";
+    private final String GW_NAME = "gw_name";
+    private final String GW_MAC = "gw_mac";
+    private final String GW_IP = "gw_ip";
+    private final String WEIGHT = "weight";
+    private final String ACTIVE = "active";
+    private final String UPDATED = "updated";
 
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
@@ -31,7 +39,7 @@ public class GatewayConfig extends AbstractWebResource {
         try{
             ObjectMapper mapper = new ObjectMapper();
             JsonNode cfg = mapper.readTree(input);
-            ArrayNode gatewaynode = (ArrayNode) cfg.get("gateways");
+            ArrayNode gatewaynode = (ArrayNode) cfg.get("gw_clusters");
             Iterator<JsonNode> iterator = gatewaynode.elements();
 
             String value = "haha";
@@ -49,53 +57,60 @@ public class GatewayConfig extends AbstractWebResource {
     }
 
     private boolean decodeConfigFile(Iterator<JsonNode> gateways) throws Exception {
-
-//        for (JsonNode gateway : gateways) {
-
-        List<Gateway> gatewayList = Lists.newArrayList();
-
         while(gateways.hasNext()) {
             JsonNode gateway = gateways.next();
-            if (!gateway.hasNonNull("gatewayName")) {
-                throw new IllegalArgumentException("gatewayName should not be null");
-            } else if (gateway.get("gatewayName").asText().isEmpty()) {
-                throw new IllegalArgumentException("gatewayName should not be empty");
+            if (!gateway.hasNonNull(GW_ID)) {
+                throw new IllegalArgumentException(GW_ID + " should not be null");
+            } else if (gateway.get(GW_ID).asInt() < 0) {
+                throw new IllegalArgumentException(GW_ID +" should not be under zero");
             }
-            String gatewayName = gateway.get("gatewayName").asText();
+            String gw_id = gateway.get(GW_ID).asText();
 
-            if (!gateway.hasNonNull("macAddress")) {
-                throw new IllegalArgumentException("macAddress should not be null");
-            } else if (gateway.get("macAddress").asText().isEmpty()) {
-                throw new IllegalArgumentException("macAddress should not be empty");
+            if (!gateway.hasNonNull(GW_NAME)) {
+                throw new IllegalArgumentException(GW_NAME + " should not be null");
+            } else if (gateway.get(GW_NAME).asInt() < 0) {
+                throw new IllegalArgumentException(GW_NAME +" should not be under zero");
             }
-            MacAddress macAddress = MacAddress.valueOf(gateway.get("macAddress").asText());
+            String gw_name = gateway.get(GW_NAME).asText();
 
-            if (!gateway.hasNonNull("dataNetworkIp")) {
-                throw new IllegalArgumentException("dataNetworkIp should not be null");
-            } else if (gateway.get("dataNetworkIp").asText().isEmpty()) {
-                throw new IllegalArgumentException("dataNetworkIp should not be empty");
+            if (!gateway.hasNonNull(GW_MAC)) {
+                throw new IllegalArgumentException(GW_MAC + " should not be null");
+            } else if (gateway.get(GW_MAC).asText().isEmpty()) {
+                throw new IllegalArgumentException(GW_MAC + " should not be empty");
             }
-            IpAddress dataNetworkIp = IpAddress.valueOf(gateway.get("dataNetworkIp").asText());
+            MacAddress gw_mac = MacAddress.valueOf(gateway.get(GW_MAC).asText());
 
-            if (!gateway.hasNonNull("weight")) {
-                throw new IllegalArgumentException("weight should not be null");
-            } else if (gateway.get("weight").asInt() < 0) {
-                throw new IllegalArgumentException("weight should not be under zero");
+            if (!gateway.hasNonNull(GW_IP)) {
+                throw new IllegalArgumentException(GW_IP + " should not be null");
+            } else if (gateway.get(GW_IP).asText().isEmpty()) {
+                throw new IllegalArgumentException(GW_IP+" should not be empty");
             }
-            short weight = (short) gateway.get("weight").asInt();
+            IpAddress gw_ip = IpAddress.valueOf(gateway.get(GW_IP).asText());
 
-            if (!gateway.hasNonNull("active")) {
-                throw new IllegalArgumentException("active should not be null");
-            } else if (gateway.get("active").asInt() < 0) {
-                throw new IllegalArgumentException("active should not be under zero");
+            if (!gateway.hasNonNull(WEIGHT)) {
+                throw new IllegalArgumentException(WEIGHT + " should not be null");
+            } else if (gateway.get(WEIGHT).asInt() < 0) {
+                throw new IllegalArgumentException(WEIGHT + " should not be under zero");
             }
-            String active = gateway.get("active").asText();
+            short weight = (short) gateway.get(WEIGHT).asInt();
 
-            Gateway default_gateway = new Gateway(gatewayName, macAddress, dataNetworkIp, weight, active);
-            gatewayList.add(default_gateway);
+            if (!gateway.hasNonNull(ACTIVE)) {
+                throw new IllegalArgumentException(ACTIVE + " should not be null");
+            } else if (gateway.get(ACTIVE).asInt() < 0) {
+                throw new IllegalArgumentException(ACTIVE +" should not be under zero");
+            }
+            String active = gateway.get(ACTIVE).asText();
+
+
+            if (!gateway.hasNonNull(UPDATED)) {
+                throw new IllegalArgumentException(UPDATED + " should not be null");
+            } else if (gateway.get(UPDATED).asInt() < 0) {
+                throw new IllegalArgumentException(UPDATED +" should not be under zero");
+            }
+            boolean updated = gateway.get(UPDATED).asBoolean();
+
+            gatewayService.createGateway(gw_id, gw_name, gw_mac, gw_ip, weight, active, updated);
         }
-
-        gatewayService.addGateway(gatewayList);
         return true;
     }
 }

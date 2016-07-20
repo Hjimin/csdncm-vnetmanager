@@ -70,7 +70,7 @@ public class OpenstackNode {
     private final Map<VirtualPortId, PortNumber> virtualPortNumbers = new HashMap<>();
     private final Map<VirtualPortId, SegmentationId> segmentationIds = new HashMap<>();
     private final Map<OpenstackNodeId, PortNumber> tunnelPortNumbers  = new HashMap<>();
-    private final Map<OpenstackNodeId, PortNumber> gatewayTunnelPortNumbers  = new HashMap<>();
+    private final Map<String, PortNumber> gatewayTunnelPortNumbers  = new HashMap<>();
     private final Map<SegmentationId, Set<VirtualPort>> tenantVirtualPorts = new HashMap<>();
 
     // Configuration information
@@ -299,7 +299,7 @@ public class OpenstackNode {
         tunnelPortNumbers.putIfAbsent(id, portNumber);
     }
 
-    public void addGatewayTunnelPortNumber(OpenstackNodeId id, PortNumber portNumber) {
+    public void addGatewayTunnelPortNumber(String id, PortNumber portNumber) {
         checkNotNull(id);
         checkNotNull(portNumber);
         gatewayTunnelPortNumbers.putIfAbsent(id, portNumber);
@@ -310,7 +310,7 @@ public class OpenstackNode {
         tunnelPortNumbers.remove(id);
     }
 
-    public void removeGatewayTunnelPortNumber(OpenstackNodeId id) {
+    public void removeGatewayTunnelPortNumber(String id) {
         checkNotNull(id);
         gatewayTunnelPortNumbers.remove(id);
     }
