@@ -406,8 +406,7 @@ public class VnetManager implements VnetManagerService {
             log.info("Gateway {} updated", gateway.toString());
             Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                     .forEach(node -> {
-                        bridgeHandler.removeOldGatewayTunnel(gateway, node);
-                        bridgeHandler.createGatewayTunnel(node, gateway);
+                        bridgeHandler.updateGatewayTunnel(gateway, node);
             });
         }
     }

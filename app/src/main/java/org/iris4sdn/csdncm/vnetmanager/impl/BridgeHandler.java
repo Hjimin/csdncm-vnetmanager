@@ -287,14 +287,26 @@ public final class BridgeHandler {
 //        log.info("Tunnel from " + srcNode.getDataNetworkIp() + " to "
 //                + old_ip + " destroyed" );
 //    }
-
-    public void removeOldGatewayTunnel(Gateway gateway, OpenstackNode dstNode) {
-        log.info("remove old gateway tunnel");
+    public void updateGatewayTunnel(Gateway gateway, OpenstackNode dstNode) {
+        log.info("update old gateway tunnel");
         DeviceId dstDeviceId = dstNode.getOvsdbId();
-        String tunnelName = "vxlan-"+gateway.id();
-        tunnelManagerService.removeOldGatewayTunnel(dstDeviceId, tunnelName);
+        IpAddress nodeIp = dstNode.getDataNetworkIp();
+        IpAddress gatewayIp = gateway.getDataNetworkIp();
+        String tunnelName = "vxlan-" + gateway.id();
+        tunnelManagerService.updateGatewayTunnel(dstDeviceId, tunnelName, nodeIp, gatewayIp);
     }
 
+    public void removeGatewayTunnelFromOvsdb(Gateway gateway, OpenstackNode dstNode) {
+        log.info("remove old gateway tunnel");
+        DeviceId dstDeviceId = dstNode.getOvsdbId();
+        String tunnelName = "vxlan-" + gateway.id();
+        IpAddress old_gate_ip = tunnelManagerService.removeOldGatewayTunnel(dstDeviceId, tunnelName);
+
+        log.info("Tunnel from " + old_gate_ip.toString() + " to "
+                + dstNode.getDataNetworkIp() + " destroyed" );
+    }
+
+    //doesn't erase port
     public void destroyGatewayTunnel(Gateway srcNode, OpenstackNode dstNode) {
         tunnelManagerService.removeTunnel(dstNode.getOvsdbId(),
                 dstNode.getDataNetworkIp(), srcNode.getDataNetworkIp());
@@ -306,6 +318,7 @@ public final class BridgeHandler {
         log.info("Tunnel from " + srcNode.getDataNetworkIp() + " to "
                 + dstNode.getDataNetworkIp() + " destroyed" );
     }
+
     public void destroyTunnel(OpenstackNode srcNode, OpenstackNode dstNode) {
         tunnelManagerService.removeTunnel(dstNode.getOvsdbId(),
                 dstNode.getDataNetworkIp(), srcNode.getDataNetworkIp());
