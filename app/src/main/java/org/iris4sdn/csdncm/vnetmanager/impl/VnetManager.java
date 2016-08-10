@@ -95,7 +95,6 @@ public class VnetManager implements VnetManagerService {
     private HostListener hostListener = new InnerHostListener();
     private GatewayListener gatewayListener = new InnerGatewayListener();
 
-//    private VirtualMachineListener virtualMachineListener = new InnerVirtualMachineStoreListener();
     private static final BridgeHandler bridgeHandler = BridgeHandler.bridgeHandler();
     private static L2RuleInstaller installer;
     private static final String IFACEID = "ifaceid";
@@ -113,12 +112,9 @@ public class VnetManager implements VnetManagerService {
         packetService.addProcessor(processor, PacketProcessor.director(1));
 
         installer = L2RuleInstaller.ruleInstaller(appId);
-
         deviceService.addListener(deviceListener);
         hostService.addListener(hostListener);
         gatewayService.addListener(gatewayListener);
-
-//        virtualMachineService.addListener(virtualMachineListener);
 
         log.info("Started~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     }
@@ -132,7 +128,6 @@ public class VnetManager implements VnetManagerService {
         hostService.removeListener(hostListener);
         gatewayService.removeListener(gatewayListener);
 
-//        virtualMachineService.removeListener(virtualMachineListener);
         eventExecutor.shutdown();
 
         log.info("Stopped");
@@ -189,7 +184,6 @@ public class VnetManager implements VnetManagerService {
                 Bridge.BridgeType.EXTERNAL) == false)
             log.warn("Could not set external bridge to out-of-band control");
 
-
     }
 
     public void nodeDisconnected(Device ovsdb) {
@@ -210,6 +204,11 @@ public class VnetManager implements VnetManagerService {
                 .filter(e -> e.getState().containsAll(EnumSet.of(TUNNEL_CREATED)))
                 .filter(e -> !e.equals(node))
                 .forEach(e -> bridgeHandler.destroyTunnel(node, e));
+
+
+        //TODO : not sure if this code actully need
+        Sets.newHashSet(gatewayService.getGateways()).stream()
+                .forEach(e -> bridgeHandler.removeGatewayTunnelFromOvsdb(e, node));
 
         node.initState();
     }
@@ -274,18 +273,21 @@ public class VnetManager implements VnetManagerService {
 
     public void ovsdbBridgeDeleted(Device ovsdbBridge) {
         DeviceId ovsdbBridgeId = ovsdbBridge.id();
-        log.info("OVS {} vanished ", ovsdbBridgeId);
+        log.info("OVS Bridge {} vanished", ovsdbBridgeId);
 
-        OpenstackNode node = nodeManagerService.getOpenstackNode(ovsdbBridgeId);
-        if (node == null) {
+        OpenstackNode bridge_deleted_node = nodeManagerService.getOpenstackNode(ovsdbBridgeId);
+        if (bridge_deleted_node == null) {
             log.warn("No information of Openstack node for detected ovs {}", ovsdbBridgeId);
             return;
         }
+
         Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> e.getState().containsAll(EnumSet.of(TUNNEL_CREATED)))
-                .filter(e -> !e.equals(node))
-                .forEach(e -> bridgeHandler.destroyTunnel(node, e));
+                .filter(e -> !e.equals(bridge_deleted_node))
+                .forEach(target_node -> bridgeHandler.destroyTunnel(bridge_deleted_node, target_node));
 
+
+        //TODO : not sure if this code actully need.
         Sets.newHashSet(gatewayService.getGateways()).stream()
                 .forEach(gateway -> {
                     processGateway(gateway, Objective.Operation.REMOVE);
@@ -306,7 +308,9 @@ public class VnetManager implements VnetManagerService {
         }
         OpenstackNode node = nodeManagerService.getOpenstackNode(deviceId);
         if (node == null) {
-            log.error("Could not find Openstack node of the host {} in {} ",
+            // error -> warn
+            // ./init host event occur
+            log.warn("Could not find Openstack node of the host {} in {} ",
                     host.toString(), deviceId);
             return;
         }
@@ -329,6 +333,11 @@ public class VnetManager implements VnetManagerService {
         } else if(type.equals(Objective.Operation.ADD)) {
             hostVirtualPortMap.put(host, virtualPort);
         }
+
+        String portname = host.location().port().name().toString();
+        log.info("virtual port {}");
+//        bridgeHandler.setIngressPortControl(node.getOvsdbId(), portname, 1000);
+
     }
 
    //configure virtual port
@@ -375,20 +384,20 @@ public class VnetManager implements VnetManagerService {
 
     public void processGateway(Gateway gateway, Objective.Operation type) {
         if(type.equals(Objective.Operation.ADD)) {
-            log.info("Gateway {} added", gateway.toString());
             Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream().forEach(node -> {
                 bridgeHandler.createGatewayTunnel(node, gateway);
+                gateway.applyState(Gateway.State.PORT_CREATED);
                 //for arp
                 installer.programGatewayIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                         gateway.getGatewayPortNumber(), type);
-                Sets.newHashSet(hostVirtualPortMap.values()).stream()
-                        .forEach(virtualPort -> installBroadcastRule(node, virtualPort, type));
                 node.getGatewayTunnelPortNumbers().forEach(gatewayPort ->
                         installer.programTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type));
+                Sets.newHashSet(hostVirtualPortMap.values()).stream()
+                        .forEach(virtualPort -> installBroadcastRule(node, virtualPort, type));
+
             });
             addBucketToGroupTable(gateway);
         } else if(type.equals(Objective.Operation.REMOVE)) {
-            log.info("Gateway {} deleted", gateway.toString());
             Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream().forEach(node -> {
                 node.getGatewayTunnelPortNumbers().forEach(gatewayPort ->
                         installer.programTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type));
@@ -399,11 +408,11 @@ public class VnetManager implements VnetManagerService {
                         .forEach(virtualPort -> installBroadcastRule(node, virtualPort, type));
                 Sets.newHashSet(hostVirtualPortMap.values()).stream()
                         .forEach(virtualPort -> installBroadcastRule(node, virtualPort, Objective.Operation.ADD));
+//                bridgeHandler.removeGatewayTunnelFromOvsdb(gateway, node);
                 bridgeHandler.destroyGatewayTunnel(gateway, node);
             });
             deleteBucketFromGroupTable(gateway);
         } else if(type.equals(Objective.Operation.ADD_TO_EXISTING)) {
-            log.info("Gateway {} updated", gateway.toString());
             Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                     .forEach(node -> {
                         bridgeHandler.updateGatewayTunnel(gateway, node);
@@ -425,7 +434,7 @@ public class VnetManager implements VnetManagerService {
     }
 
     private void addBucketToGroupTable(Gateway gateway) {
-        log.info("Add bucket to GroupTable");
+        log.info("Add \"{}\" bucket to GroupTable", gateway.id());
         List<GroupBucket> gateway_bucket = Lists.newArrayList();
         TrafficTreatment.Builder builder = DefaultTrafficTreatment.builder();
         short weight = gateway.getWeight();
@@ -441,8 +450,8 @@ public class VnetManager implements VnetManagerService {
                 .filter(node ->
                     (groupService.getGroup(node.getBridgeId(Bridge.BridgeType.INTEGRATION), groupKey) != null))
                 .forEach(node -> {
-                    if(groupService.getGroup(node.getBridgeId(Bridge.BridgeType.INTEGRATION), groupKey) == null) {
-                    }
+//                    if(groupService.getGroup(node.getBridgeId(Bridge.BridgeType.INTEGRATION), groupKey) == null) {
+//                    }
                     groupService.addBucketsToGroup(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                             groupKey, groupbuckets, groupKey, appId);
                 });
@@ -566,7 +575,12 @@ public class VnetManager implements VnetManagerService {
         Set<PortNumber> tunnelPorts = Sets.newHashSet(node.getTunnelPortNumbers());
         Set<PortNumber> virtualPorts = Sets.newHashSet(node.getVirutalPortNumbers(segmentationId));
         Set<PortNumber> gatewayPorts = new HashSet<>();
-        Sets.newHashSet(gatewayService.getGateways()).forEach(gateway -> gatewayPorts.add(gateway.getGatewayPortNumber()));
+        Sets.newHashSet(gatewayService.getGateways()).stream()
+                .filter(e -> e.getState().contains(Gateway.State.PORT_CREATED))
+                .forEach(gateway -> {
+                    log.info("gateway {}", gateway.id());
+                    gatewayPorts.add(gateway.getGatewayPortNumber());
+                });
 
         // Add local virtual ports & tunnel ports for entire out ports
         allPorts.addAll(virtualPorts);
@@ -592,6 +606,7 @@ public class VnetManager implements VnetManagerService {
         MacAddress targetHostMac = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
         MacAddress senderVmMac = MacAddress.valueOf(arpPacket.getSenderHardwareAddress());
 
+
         Iterator<Host> hosts = hostService.getHostsByMac(targetHostMac).iterator();
         if(!hosts.hasNext()) {
             return;
@@ -615,6 +630,8 @@ public class VnetManager implements VnetManagerService {
             return;
         }
 
+        log.info("targetHostMac {}", targetHostMac.toString());
+        log.info("senderVmMac {}", senderVmMac.toString());
 
         Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
             .filter(e -> e.getState().contains(GATEWAY_CREATED))
@@ -678,11 +695,14 @@ public class VnetManager implements VnetManagerService {
             checkNotNull(event, EVENT_NOT_NULL);
             Gateway gateway = event.subject();
             if (GatewayEvent.Type.GATEWAY_PUT == event.type()) {
-                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD));
+                processGateway(gateway, Objective.Operation.ADD);
+//                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD));
             } else if (GatewayEvent.Type.GATEWAY_REMOVE == event.type()) {
-                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.REMOVE));
+                processGateway(gateway, Objective.Operation.REMOVE);
+//                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.REMOVE));
             } else if (GatewayEvent.Type.GATEWAY_UPDATE == event.type()) {
-                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD_TO_EXISTING));
+                processGateway(gateway, Objective.Operation.ADD_TO_EXISTING);
+//                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD_TO_EXISTING));
             }
         }
     }

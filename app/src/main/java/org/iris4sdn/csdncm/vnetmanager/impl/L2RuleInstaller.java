@@ -402,7 +402,9 @@ public class L2RuleInstaller {
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment).withSelector(selector)
                 .fromApp(appId).makePermanent().withFlag(ForwardingObjective.Flag.SPECIFIC)
-                .withPriority(L2_CLASSIFIER_PRIORITY);
+                .withPriority(49999);
+//                .withPriority(L2_CLASSIFIER_PRIORITY);
+
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
         } else {
@@ -412,7 +414,7 @@ public class L2RuleInstaller {
 
     public void programGatewayIn(DeviceId deviceId,
                                  PortNumber inPort, Objective.Operation type) {
-        log.info("Program flow toward local VMs from tunnel ports");
+        log.info("Program Gateway In Rule");
 
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(EthType.EtherType.ARP.ethType().toShort())
@@ -420,6 +422,7 @@ public class L2RuleInstaller {
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
+//                .build();
                 .punt().build();
 
         ForwardingObjective.Builder objective = DefaultForwardingObjective

@@ -44,7 +44,7 @@ public class GatewayConfig extends AbstractWebResource {
 
             String value = "haha";
             if(decodeConfigFile(iterator)){
-                log.info("Configuration Added");
+                log.info("Gateway configuration Added");
                 value = "success";
             } else {
                 value = "fail";

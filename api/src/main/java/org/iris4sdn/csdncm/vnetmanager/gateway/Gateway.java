@@ -6,9 +6,20 @@ import org.onlab.packet.MacAddress;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
 
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Set;
+
 import static com.google.common.base.Preconditions.checkNotNull;
 public class Gateway {
 
+    public enum State {
+        CONFIGURED,
+        PORT_CREATED,
+        BUCKET_IN,
+        ACTIVATE
+    }
     private String name;
     private DeviceId intBridgeId;
     private MacAddress macAddress;
@@ -16,8 +27,9 @@ public class Gateway {
     private IpAddress dataNetworkIp;
     private PortNumber gatewayPortNumber;
     private final String nodeId;
-    private String state;
+    private String activate;
     private boolean updated;
+    private final Set<State> currentState = new HashSet<>();
 
     public Gateway(String id, String name, MacAddress macAddress, IpAddress dataNetworkIp,
                    short weight, String state, boolean updated) {
@@ -26,7 +38,7 @@ public class Gateway {
         this.macAddress = checkNotNull(macAddress);
         this.dataNetworkIp = checkNotNull(dataNetworkIp);
         this.weight = checkNotNull(weight);
-        this.state = state;
+        this.activate = state;
         this.updated = updated;
     }
 
@@ -50,15 +62,15 @@ public class Gateway {
         return weight;
     }
 
-    public String getState() {
-        return state;
+    public String getActivateState() {
+        return activate;
     }
 
 
     public boolean isActive() {
-        if(state.equals("active")) {
+        if(activate.equals("active")) {
             return true;
-        } else if (state.equals("deactive")) {
+        } else if (activate.equals("deactive")) {
             return false;
         }
         return false;
@@ -69,6 +81,22 @@ public class Gateway {
             return true;
         }
         return false;
+    }
+
+    public Set<State> getState() {
+        return Collections.unmodifiableSet(currentState);
+    }
+
+    public Set<State> applyState(State state) {
+        checkNotNull(state);
+        currentState.addAll(EnumSet.of(state));
+        return Collections.unmodifiableSet(currentState);
+    }
+
+    public Set<State> deleteState(State state) {
+        checkNotNull(state);
+        currentState.removeAll(EnumSet.of(state));
+        return Collections.unmodifiableSet(currentState);
     }
 
     public void changeName(String name){
@@ -87,8 +115,8 @@ public class Gateway {
         this.weight = weight;
     }
 
-    public void changeState(String state) {
-        this.state = state;
+    public void changeActivateState(String state) {
+        this.activate = state;
     }
 
     public void changeUpdated(boolean updated) {

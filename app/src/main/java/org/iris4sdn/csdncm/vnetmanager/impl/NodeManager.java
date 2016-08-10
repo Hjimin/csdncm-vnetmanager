@@ -20,7 +20,6 @@ import org.onlab.util.KryoNamespace;
 import org.onosproject.event.AbstractListenerManager;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
-//import org.onosproject.store.se;
 import org.onosproject.store.serializers.KryoNamespaces;
 import org.onosproject.store.service.*;
 import org.onosproject.vtnrsc.VirtualPortId;
@@ -137,8 +136,8 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
                     gateway.changeMac(macAddress);
                 }
 
-                if(!gateway.getState().equals(state)){
-                    gateway.changeState(state);
+                if(!gateway.getActivateState().equals(state)){
+                    gateway.changeActivateState(state);
                 }
 
                 if(!gateway.gatewayName().equals(name)) {
@@ -150,8 +149,10 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
         }
 
         Gateway gateway = new Gateway(id, name, macAddress, dataNetworkIp, weight, state, updated);
-        log.info("createGateway {}", gateway.toString());
+        gateway.applyState(Gateway.State.CONFIGURED);
+        gateway.applyState(Gateway.State.ACTIVATE);
         gatewayStore.put(gateway.id(), gateway);
+        log.info("New gateway \"{}\" is added", gateway.id());
     }
 
 //    private boolean checkGatewayUpdate(Gateway gateway) {
@@ -192,7 +193,7 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
         return gatewayStore.values().stream()
                 .filter(gateway -> {
                     if (gateway.getGatewayPortNumber().toString().endsWith(inPort.toString()+")")) {
-                        log.info("gateway {} ", gateway.getGatewayPortNumber());
+//                        log.info("gateway {} ", gateway.getGatewayPortNumber());
                         return true;
                     } if (gateway.getGatewayPortNumber().toString().equals(inPort.toString())) {
                         return true;
