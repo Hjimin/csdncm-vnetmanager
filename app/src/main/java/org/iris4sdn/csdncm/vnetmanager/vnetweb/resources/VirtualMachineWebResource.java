@@ -25,7 +25,7 @@ import static javax.ws.rs.core.Response.Status.INTERNAL_SERVER_ERROR;
 import static javax.ws.rs.core.Response.Status.OK;
 import static org.onlab.util.Tools.nullIsNotFound;
 
-@Path("virtual-machine")
+@Path("/virtual-machine")
 public class VirtualMachineWebResource extends AbstractWebResource {
     private final Logger log = LoggerFactory
             .getLogger(VirtualMachineWebResource.class);

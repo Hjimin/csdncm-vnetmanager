@@ -46,6 +46,8 @@ public class L2RuleInstaller {
     private static final int DEFAULT_PRIORITY = 50000;
     private static final int ARP_DEFAULT_PRIORITY = 55000;
 
+    private static final int DEFAULT_TIMEOUT = 30;
+
     private L2RuleInstaller(ApplicationId appId) {
         this.appId = checkNotNull(appId, "ApplicationId can not be null");
         ServiceDirectory serviceDirectory = new DefaultServiceDirectory();
@@ -308,8 +310,8 @@ public class L2RuleInstaller {
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment).withSelector(selector)
                 .fromApp(appId).withFlag(ForwardingObjective.Flag.SPECIFIC)
-//                .withPriority(L2_CLASSIFIER_PRIORITY);
-        .withPriority(50000);
+                .withPriority(L2_CLASSIFIER_PRIORITY);
+
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
         } else {
@@ -333,8 +335,7 @@ public class L2RuleInstaller {
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment.build()).withSelector(selector)
                 .fromApp(appId).withFlag(ForwardingObjective.Flag.SPECIFIC)
-//                .withPriority(L2_CLASSIFIER_PRIORITY);
-        .withPriority(50000);
+                .withPriority(L2_CLASSIFIER_PRIORITY);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
         } else {

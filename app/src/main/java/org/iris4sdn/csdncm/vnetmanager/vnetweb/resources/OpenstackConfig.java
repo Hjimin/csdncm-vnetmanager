@@ -34,7 +34,7 @@ import javax.ws.rs.core.Response;
 import java.io.InputStream;
 
 
-@Path("/gggg")
+@Path("/openstacknode")
 public class OpenstackConfig extends AbstractWebResource {
 
     private final Logger log = LoggerFactory.getLogger(OpenstackConfig.class);

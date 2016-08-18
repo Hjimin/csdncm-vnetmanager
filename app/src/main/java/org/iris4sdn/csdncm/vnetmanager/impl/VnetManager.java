@@ -11,6 +11,10 @@ import org.iris4sdn.csdncm.vnetmanager.gateway.Gateway;
 import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayEvent;
 import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayListener;
 import org.iris4sdn.csdncm.vnetmanager.gateway.GatewayService;
+import org.iris4sdn.csdncm.vnetmanager.virtualmachine.DefaultVirtualMachine;
+import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachine;
+import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachineId;
+import org.iris4sdn.csdncm.vnetmanager.virtualmachine.VirtualMachineService;
 import org.onlab.packet.*;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
@@ -88,6 +92,9 @@ public class VnetManager implements VnetManagerService {
     @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
     protected GatewayService gatewayService;
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected VirtualMachineService virtualMachineService;
+
     private final ExecutorService eventExecutor = Executors
             .newFixedThreadPool(1, groupedThreads("onos/vnetmanager", "event-handler"));
     private ApplicationId appId;
@@ -115,8 +122,7 @@ public class VnetManager implements VnetManagerService {
         deviceService.addListener(deviceListener);
         hostService.addListener(hostListener);
         gatewayService.addListener(gatewayListener);
-
-        log.info("Started~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        log.info("Started");
     }
 
     @Deactivate
@@ -394,7 +400,6 @@ public class VnetManager implements VnetManagerService {
                         installer.programTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type));
                 Sets.newHashSet(hostVirtualPortMap.values()).stream()
                         .forEach(virtualPort -> installBroadcastRule(node, virtualPort, type));
-
             });
             addBucketToGroupTable(gateway);
         } else if(type.equals(Objective.Operation.REMOVE)) {
@@ -417,6 +422,8 @@ public class VnetManager implements VnetManagerService {
                     .forEach(node -> {
                         bridgeHandler.updateGatewayTunnel(gateway, node);
             });
+            deleteBucketFromGroupTable(gateway);
+            addBucketToGroupTable(gateway);
         }
     }
 
@@ -603,10 +610,12 @@ public class VnetManager implements VnetManagerService {
     }
 
     private void processArp(ARP arpPacket, PortNumber inPort) {
+        //get arp response coming from remote vm
         MacAddress targetHostMac = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
         MacAddress senderVmMac = MacAddress.valueOf(arpPacket.getSenderHardwareAddress());
+        IpAddress senderVmIp = Ip4Address.valueOf(arpPacket.getSenderProtocolAddress());
 
-
+        //check packet if they have right dst mac
         Iterator<Host> hosts = hostService.getHostsByMac(targetHostMac).iterator();
         if(!hosts.hasNext()) {
             return;
@@ -630,14 +639,18 @@ public class VnetManager implements VnetManagerService {
             return;
         }
 
-        log.info("targetHostMac {}", targetHostMac.toString());
-        log.info("senderVmMac {}", senderVmMac.toString());
+//        log.info("targetHostMac {}", targetHostMac.toString());
+//        log.info("senderVmMac {}", senderVmMac.toString());
+
+        VirtualMachine vm = new DefaultVirtualMachine(VirtualMachineId.virtualMachineId(senderVmMac.toString()),
+                segmentationId, senderVmIp, senderVmMac);
 
         Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
             .filter(e -> e.getState().contains(GATEWAY_CREATED))
             .forEach(node -> {
              installer.programLocalInWithGateway(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                         segmentationId, senderVmMac, Objective.Operation.ADD);
+                virtualMachineService.addVirtualMachine(vm);
             });
     }
 

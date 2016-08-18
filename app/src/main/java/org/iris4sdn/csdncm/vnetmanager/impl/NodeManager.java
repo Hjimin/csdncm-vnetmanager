@@ -82,7 +82,7 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
 
         gatewayStore.addListener(gatewayListener);
 
-        log.info("Started~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        log.info("Started");
     }
 
     @Deactivate
