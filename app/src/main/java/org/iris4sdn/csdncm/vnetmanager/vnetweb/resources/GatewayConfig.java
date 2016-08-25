@@ -19,7 +19,7 @@ import javax.ws.rs.core.Response;
 import java.io.InputStream;
 import java.util.Iterator;
 
-@Path("/gateway")
+@Path("/gwcluster")
 public class GatewayConfig extends AbstractWebResource {
     private final Logger log = LoggerFactory.getLogger(GatewayConfig.class);
     GatewayService gatewayService = getService(GatewayService.class);

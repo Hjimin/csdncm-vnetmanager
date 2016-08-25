@@ -34,7 +34,7 @@
 
     <properties>
         <onos.app.name>org.iris4sdn.csdncm.vnetmanager</onos.app.name>
-        <web.context>/vnetmanager</web.context>
+        <web.context>/iris4sdn/v1/csdncm</web.context>
         <api.version>1.0.0</api.version>
         <api.title>vnetmanager app</api.title>
         <api.description>
