@@ -397,7 +397,7 @@ public class VnetManager implements VnetManagerService {
                 installer.programGatewayIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                         gateway.getGatewayPortNumber(), type);
                 node.getGatewayTunnelPortNumbers().forEach(gatewayPort ->
-                        installer.programTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type));
+                        installer.programGatewayTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type));
                 Sets.newHashSet(hostVirtualPortMap.values()).stream()
                         .forEach(virtualPort -> installBroadcastRule(node, virtualPort, type));
             });
@@ -405,7 +405,7 @@ public class VnetManager implements VnetManagerService {
         } else if(type.equals(Objective.Operation.REMOVE)) {
             Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream().forEach(node -> {
                 node.getGatewayTunnelPortNumbers().forEach(gatewayPort ->
-                        installer.programTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type));
+                        installer.programGatewayTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type));
                 installer.programGatewayIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                         gateway.getGatewayPortNumber(), type);
                 //erase broadcasting rule going out to deactived gateway
@@ -501,7 +501,8 @@ public class VnetManager implements VnetManagerService {
         // From remote VMs
         // Rule from other openstack node instance
         node.getTunnelPortNumbers()
-                .forEach(e -> installer.programTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), e, type));
+                .forEach(e -> installer.programTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
+                        segmentationId, e, type));
 
 //        Set<PortNumber> tunnel_gateway_ports = new HashSet<>();
 //        gatewayStore.values().stream().forEach(gwport -> {
