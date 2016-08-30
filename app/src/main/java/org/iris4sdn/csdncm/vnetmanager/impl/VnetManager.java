@@ -211,10 +211,9 @@ public class VnetManager implements VnetManagerService {
                 .filter(e -> !e.equals(node))
                 .forEach(e -> bridgeHandler.destroyTunnel(node, e));
 
-
-        //TODO : not sure if this code actully need
-        Sets.newHashSet(gatewayService.getGateways()).stream()
-                .forEach(e -> bridgeHandler.removeGatewayTunnelFromOvsdb(e, node));
+//        //TODO : not sure if this code actully need
+//        Sets.newHashSet(gatewayService.getGateways()).stream()
+//                .forEach(e -> bridgeHandler.removeGatewayTunnelFromOvsdb(e, node));
 
         node.initState();
     }
