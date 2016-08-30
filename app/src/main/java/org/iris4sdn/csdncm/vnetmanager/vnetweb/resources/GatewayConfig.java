@@ -29,7 +29,7 @@ public class GatewayConfig extends AbstractWebResource {
     private final String GW_MAC = "gw_mac";
     private final String GW_IP = "gw_ip";
     private final String WEIGHT = "weight";
-    private final String ACTIVE = "active";
+    private final String ACTIVE = "state";
     private final String UPDATED = "updated";
 
     @POST
