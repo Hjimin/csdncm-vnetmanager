@@ -395,16 +395,22 @@ public class VnetManager implements VnetManagerService {
                 //for arp
                 installer.programGatewayIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                         gateway.getGatewayPortNumber(), type);
-                node.getGatewayTunnelPortNumbers().forEach(gatewayPort ->
-                        installer.programGatewayTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type));
+                node.getGatewayTunnelPortNumbers().forEach(gatewayPort -> {
+                        if(gateway.getGatewayPortNumber().toString().equals(gatewayPort.toString())) {
+                            installer.programGatewayTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type);
+                        }
+                });
                 Sets.newHashSet(hostVirtualPortMap.values()).stream()
                         .forEach(virtualPort -> installBroadcastRule(node, virtualPort, type));
             });
             addBucketToGroupTable(gateway);
         } else if(type.equals(Objective.Operation.REMOVE)) {
             Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream().forEach(node -> {
-                node.getGatewayTunnelPortNumbers().forEach(gatewayPort ->
-                        installer.programGatewayTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type));
+                node.getGatewayTunnelPortNumbers().forEach(gatewayPort -> {
+                        if(gateway.getGatewayPortNumber().toString().equals(gatewayPort.toString())) {
+                            installer.programGatewayTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type);
+                        }
+                });
                 installer.programGatewayIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                         gateway.getGatewayPortNumber(), type);
                 //erase broadcasting rule going out to deactived gateway
