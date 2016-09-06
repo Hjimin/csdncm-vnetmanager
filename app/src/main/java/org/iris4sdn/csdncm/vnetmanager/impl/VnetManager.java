@@ -110,7 +110,7 @@ public class VnetManager implements VnetManagerService {
     private VnetPacketProcessor processor = new VnetPacketProcessor();
 
     private final Map<Host, VirtualPort> hostVirtualPortMap = new HashMap<>();
-    private final Map<Gateway, GroupBucket> bucketMap = new HashMap<>();
+//    private final Map<Gateway, GroupBucket> bucketMap = new HashMap<>();
     private final GroupKey groupKey = new DefaultGroupKey("org.iris4sdn.csdncm.vnetmanager".getBytes());
 
     @Activate
@@ -390,13 +390,14 @@ public class VnetManager implements VnetManagerService {
     public void processGateway(Gateway gateway, Objective.Operation type) {
         if(type.equals(Objective.Operation.ADD)) {
             Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream().forEach(node -> {
+                DeviceId deviceId = node.getOvsdbId();
                 bridgeHandler.createGatewayTunnel(node, gateway);
                 gateway.applyState(Gateway.State.PORT_CREATED);
                 //for arp
                 installer.programGatewayIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                        gateway.getGatewayPortNumber(), type);
+                        gateway.getGatewayPortNumber(deviceId), type);
                 node.getGatewayTunnelPortNumbers().forEach(gatewayPort -> {
-                        if(gateway.getGatewayPortNumber().toString().equals(gatewayPort.toString())) {
+                        if(gateway.getGatewayPortNumber(deviceId).toString().equals(gatewayPort.toString())) {
                             installer.programGatewayTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type);
                         }
                 });
@@ -406,13 +407,14 @@ public class VnetManager implements VnetManagerService {
             addBucketToGroupTable(gateway);
         } else if(type.equals(Objective.Operation.REMOVE)) {
             Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream().forEach(node -> {
+                DeviceId deviceId = node.getOvsdbId();
                 node.getGatewayTunnelPortNumbers().forEach(gatewayPort -> {
-                        if(gateway.getGatewayPortNumber().toString().equals(gatewayPort.toString())) {
+                        if(gateway.getGatewayPortNumber(deviceId).toString().equals(gatewayPort.toString())) {
                             installer.programGatewayTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION), gatewayPort, type);
                         }
                 });
                 installer.programGatewayIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-                        gateway.getGatewayPortNumber(), type);
+                        gateway.getGatewayPortNumber(deviceId), type);
                 //erase broadcasting rule going out to deactived gateway
                 Sets.newHashSet(hostVirtualPortMap.values()).stream()
                         .forEach(virtualPort -> installBroadcastRule(node, virtualPort, type));
@@ -447,23 +449,22 @@ public class VnetManager implements VnetManagerService {
 
     private void addBucketToGroupTable(Gateway gateway) {
         log.info("Add \"{}\" bucket to GroupTable", gateway.id());
-        List<GroupBucket> gateway_bucket = Lists.newArrayList();
-        TrafficTreatment.Builder builder = DefaultTrafficTreatment.builder();
         short weight = gateway.getWeight();
-        builder.setOutput(gateway.getGatewayPortNumber());
-        GroupBucket bucket = DefaultGroupBucket.createSelectGroupBucket(builder.build(), weight);
-
-        gateway_bucket.add(bucket);
-        bucketMap.put(gateway, bucket);
-        GroupBuckets groupbuckets = new GroupBuckets(gateway_bucket);
-
 
         Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(node ->
                     (groupService.getGroup(node.getBridgeId(Bridge.BridgeType.INTEGRATION), groupKey) != null))
                 .forEach(node -> {
-//                    if(groupService.getGroup(node.getBridgeId(Bridge.BridgeType.INTEGRATION), groupKey) == null) {
-//                    }
+                    DeviceId deviceId = node.getOvsdbId();
+
+                    List<GroupBucket> gateway_bucket = Lists.newArrayList();
+                    TrafficTreatment.Builder builder = DefaultTrafficTreatment.builder();
+                    builder.setOutput(gateway.getGatewayPortNumber(deviceId));
+                    GroupBucket bucket = DefaultGroupBucket.createSelectGroupBucket(builder.build(), weight);
+                    gateway_bucket.add(bucket);
+                    node.addBucketMap(gateway,bucket);
+                    GroupBuckets groupbuckets = new GroupBuckets(gateway_bucket);
+
                     groupService.addBucketsToGroup(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                             groupKey, groupbuckets, groupKey, appId);
                 });
@@ -472,24 +473,23 @@ public class VnetManager implements VnetManagerService {
     private void deleteBucketFromGroupTable(Gateway gateway) {
         log.info("Delete bucket from GroupTable");
         //this list will hold buckets that needs to be removed
-        List<GroupBucket> removing_bucketList = Lists.newArrayList();
-
-        GroupBucket bucket = bucketMap.get(gateway);
-        if(bucket == null) {
-            return;
-        }
-        removing_bucketList.add(bucket);
-        GroupBuckets groupbuckets = new GroupBuckets(removing_bucketList);
 
         Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(node ->
                         (groupService.getGroup(node.getBridgeId(Bridge.BridgeType.INTEGRATION), groupKey) != null))
                 .forEach(node -> {
+                    List<GroupBucket> removing_bucketList = Lists.newArrayList();
+                    GroupBucket bucket = node.getBucketMap(gateway);
+                    if(bucket == null) {
+                        return;
+                    }
+                    removing_bucketList.add(bucket);
+                    GroupBuckets groupbuckets = new GroupBuckets(removing_bucketList);
+
                     groupService.removeBucketsFromGroup(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                             groupKey, groupbuckets, groupKey, appId);
+                    node.removeBucketMap(gateway);
         });
-
-        bucketMap.remove(gateway);
     }
 
     private void installUnicastInRule(OpenstackNode node, VirtualPort port,
@@ -592,7 +592,7 @@ public class VnetManager implements VnetManagerService {
                 .filter(e -> e.getState().contains(Gateway.State.PORT_CREATED))
                 .forEach(gateway -> {
                     log.info("gateway {}", gateway.id());
-                    gatewayPorts.add(gateway.getGatewayPortNumber());
+                    gatewayPorts.add(gateway.getGatewayPortNumber(node.getOvsdbId()));
                 });
 
         // Add local virtual ports & tunnel ports for entire out ports
@@ -639,11 +639,11 @@ public class VnetManager implements VnetManagerService {
         TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
         SegmentationId segmentationId = tenantNetwork.segmentationId();
 
-        Gateway gateway = gatewayService.getGateway(inPort);
-        if(gateway == null) {
-            log.error("gateway can not be null");
-            return;
-        }
+//        Gateway gateway = gatewayService.getGateway(inPort);
+//        if(gateway == null) {
+//            log.error("gateway can not be null");
+//            return;
+//        }
 
 //        log.info("targetHostMac {}", targetHostMac.toString());
 //        log.info("senderVmMac {}", senderVmMac.toString());

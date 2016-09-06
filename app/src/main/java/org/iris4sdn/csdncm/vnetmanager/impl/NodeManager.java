@@ -19,7 +19,6 @@ import org.onlab.packet.MacAddress;
 import org.onlab.util.KryoNamespace;
 import org.onosproject.event.AbstractListenerManager;
 import org.onosproject.net.DeviceId;
-import org.onosproject.net.PortNumber;
 import org.onosproject.store.serializers.KryoNamespaces;
 import org.onosproject.store.service.*;
 import org.onosproject.vtnrsc.VirtualPortId;
@@ -188,21 +187,21 @@ public class NodeManager extends AbstractListenerManager<GatewayEvent, GatewayLi
 //    }
 
 
-    @Override
-    public Gateway getGateway(PortNumber inPort){
-        return gatewayStore.values().stream()
-                .filter(gateway -> {
-                    if (gateway.getGatewayPortNumber().toString().endsWith(inPort.toString()+")")) {
-//                        log.info("gateway {} ", gateway.getGatewayPortNumber());
-                        return true;
-                    } if (gateway.getGatewayPortNumber().toString().equals(inPort.toString())) {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                })
-                .findFirst().orElse(null);
-    }
+//    @Override
+//    public Gateway getGateway(PortNumber inPort){
+//        return gatewayStore.values().stream()
+//                .filter(gateway -> {
+//                    if (gateway.getGatewayPortNumber().toString().endsWith(inPort.toString()+")")) {
+////                        log.info("gateway {} ", gateway.getGatewayPortNumber());
+//                        return true;
+//                    } if (gateway.getGatewayPortNumber().toString().equals(inPort.toString())) {
+//                        return true;
+//                    } else {
+//                        return false;
+//                    }
+//                })
+//                .findFirst().orElse(null);
+//    }
 
     @Override
     public Iterable<Gateway> getGateways() {

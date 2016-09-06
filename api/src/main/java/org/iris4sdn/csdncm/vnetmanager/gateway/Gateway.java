@@ -6,10 +6,7 @@ import org.onlab.packet.MacAddress;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.PortNumber;
 
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 public class Gateway {
@@ -25,7 +22,8 @@ public class Gateway {
     private MacAddress macAddress;
     private short weight;
     private IpAddress dataNetworkIp;
-    private PortNumber gatewayPortNumber;
+//    private PortNumber gatewayPortNumber;
+    private final Map<DeviceId, PortNumber> gatewayPortNumbers  = new HashMap<>();
     private final String nodeId;
     private String activate;
     private boolean updated;
@@ -137,10 +135,13 @@ public class Gateway {
         return null;
     }
 
-    public void setGatewayPortNumber(PortNumber gatewayPortNumber) {
-       this.gatewayPortNumber = gatewayPortNumber;
+    public void setGatewayPortNumber(DeviceId id, PortNumber gatewayPortNumber) {
+        checkNotNull(id);
+        checkNotNull(gatewayPortNumber);
+        gatewayPortNumbers.putIfAbsent(id, gatewayPortNumber);
     }
-    public PortNumber getGatewayPortNumber() {
-        return gatewayPortNumber;
+
+    public PortNumber getGatewayPortNumber(DeviceId id) {
+        return gatewayPortNumbers.get(id);
     }
 }

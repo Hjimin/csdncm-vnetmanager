@@ -17,11 +17,13 @@ package org.iris4sdn.csdncm.vnetmanager;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Sets;
+import org.iris4sdn.csdncm.vnetmanager.gateway.Gateway;
 import org.onlab.packet.IpAddress;
 import org.onosproject.incubator.net.tunnel.Tunnel;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Port;
 import org.onosproject.net.PortNumber;
+import org.onosproject.net.group.GroupBucket;
 import org.onosproject.vtnrsc.FixedIp;
 import org.onosproject.vtnrsc.SegmentationId;
 import org.onosproject.vtnrsc.VirtualPort;
@@ -72,6 +74,7 @@ public class OpenstackNode {
     private final Map<OpenstackNodeId, PortNumber> tunnelPortNumbers  = new HashMap<>();
     private final Map<String, PortNumber> gatewayTunnelPortNumbers  = new HashMap<>();
     private final Map<SegmentationId, Set<VirtualPort>> tenantVirtualPorts = new HashMap<>();
+    private final Map<Gateway, GroupBucket> bucketMap = new HashMap<>();
 
     // Configuration information
     private String hostName;
@@ -195,6 +198,7 @@ public class OpenstackNode {
         tunnelPortNumbers.clear();
         gatewayTunnelPortNumbers.clear();
         tenantVirtualPorts.clear();
+        bucketMap.clear();
 
         applyState(State.CONFIGURED);
     }
@@ -373,6 +377,23 @@ public class OpenstackNode {
 
     public Port getExPort() {
         return exPort;
+    }
+
+
+    public void addBucketMap(Gateway gateway, GroupBucket bucket) {
+        checkNotNull(gateway);
+        checkNotNull(bucket);
+        bucketMap.put(gateway, bucket);
+    }
+
+    public void removeBucketMap(Gateway gateway) {
+        checkNotNull(gateway);
+        bucketMap.remove(gateway);
+    }
+
+    public GroupBucket getBucketMap(Gateway gateway) {
+        checkNotNull(gateway);
+        return bucketMap.get(gateway);
     }
 
     @Override
