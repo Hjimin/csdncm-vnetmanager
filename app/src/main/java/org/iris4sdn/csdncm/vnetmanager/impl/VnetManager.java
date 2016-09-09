@@ -733,9 +733,9 @@ public class VnetManager implements VnetManagerService {
         public void event(HostEvent event) {
             Host host = event.subject();
             if (HostEvent.Type.HOST_ADDED == event.type()) {
-                processHost(host, Objective.Operation.ADD);
+                eventExecutor.submit(() -> processHost(host, Objective.Operation.ADD));
             } else if (HostEvent.Type.HOST_REMOVED == event.type()) {
-                processHost(host, Objective.Operation.REMOVE);
+                eventExecutor.submit(() -> processHost(host, Objective.Operation.REMOVE));
             } else if (HostEvent.Type.HOST_UPDATED == event.type()) {
                 processHost(host, Objective.Operation.REMOVE);
                 processHost(host, Objective.Operation.ADD);
@@ -750,14 +750,14 @@ public class VnetManager implements VnetManagerService {
             checkNotNull(event, EVENT_NOT_NULL);
             Gateway gateway = event.subject();
             if (GatewayEvent.Type.GATEWAY_PUT == event.type()) {
-                processGateway(gateway, Objective.Operation.ADD);
-//                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD));
+//                processGateway(gateway, Objective.Operation.ADD);
+                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD));
             } else if (GatewayEvent.Type.GATEWAY_REMOVE == event.type()) {
-                processGateway(gateway, Objective.Operation.REMOVE);
-//                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.REMOVE));
+//                processGateway(gateway, Objective.Operation.REMOVE);
+                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.REMOVE));
             } else if (GatewayEvent.Type.GATEWAY_UPDATE == event.type()) {
-                processGateway(gateway, Objective.Operation.ADD_TO_EXISTING);
-//                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD_TO_EXISTING));
+//                processGateway(gateway, Objective.Operation.ADD_TO_EXISTING);
+                eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD_TO_EXISTING));
             }
         }
     }
