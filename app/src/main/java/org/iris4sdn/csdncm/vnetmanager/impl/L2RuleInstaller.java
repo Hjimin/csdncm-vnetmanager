@@ -46,7 +46,7 @@ public class L2RuleInstaller {
     private static final int DEFAULT_PRIORITY = 50000;
     private static final int ARP_DEFAULT_PRIORITY = 55000;
 
-    private static final int DEFAULT_TIMEOUT = 60;
+    private static final int DEFAULT_TIMEOUT = 360;
 
     private L2RuleInstaller(ApplicationId appId) {
         this.appId = checkNotNull(appId, "ApplicationId can not be null");
@@ -441,7 +441,7 @@ public class L2RuleInstaller {
 
     public void programGatewayIn(DeviceId deviceId,
                                  PortNumber inPort, Objective.Operation type) {
-        log.info("Program Gateway In Rule");
+        log.info("Program Gateway In ARP Rule");
 
         TrafficSelector selector = DefaultTrafficSelector.builder()
                 .matchEthType(EthType.EtherType.ARP.ethType().toShort())
@@ -449,14 +449,12 @@ public class L2RuleInstaller {
                 .build();
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
-//                .build();
                 .punt().build();
 
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment).withSelector(selector)
                 .fromApp(appId).makePermanent().withFlag(ForwardingObjective.Flag.SPECIFIC)
                 .withPriority(50010);
-//                .withPriority(L2_CLASSIFIER_PRIORITY);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
         } else {

@@ -30,10 +30,7 @@ import org.onosproject.net.group.*;
 import org.onosproject.net.host.HostEvent;
 import org.onosproject.net.host.HostListener;
 import org.onosproject.net.host.HostService;
-import org.onosproject.net.packet.InboundPacket;
-import org.onosproject.net.packet.PacketContext;
-import org.onosproject.net.packet.PacketProcessor;
-import org.onosproject.net.packet.PacketService;
+import org.onosproject.net.packet.*;
 import org.onosproject.vtnrsc.SegmentationId;
 import org.onosproject.vtnrsc.TenantNetwork;
 import org.onosproject.vtnrsc.VirtualPort;
@@ -42,6 +39,7 @@ import org.onosproject.vtnrsc.tenantnetwork.TenantNetworkService;
 import org.onosproject.vtnrsc.virtualport.VirtualPortService;
 import org.slf4j.Logger;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -615,7 +613,7 @@ public class VnetManager implements VnetManagerService {
         }
     }
 
-    private void processArp(ARP arpPacket, PortNumber inPort) {
+    private void processArp(PacketContext context, Ethernet reply, ARP arpPacket) {
         //get arp response coming from remote vm
         MacAddress targetHostMac = MacAddress.valueOf(arpPacket.getTargetHardwareAddress());
         MacAddress senderVmMac = MacAddress.valueOf(arpPacket.getSenderHardwareAddress());
@@ -671,8 +669,33 @@ public class VnetManager implements VnetManagerService {
                         segmentationId, senderVmMac, Objective.Operation.ADD);
                 virtualMachineService.addVirtualMachine(vm);
             });
+
+        sendReply(context, reply, host);
     }
 
+    private void sendReply(PacketContext context, Ethernet reply, Host host) {
+        TrafficTreatment.Builder builder = DefaultTrafficTreatment.builder();
+        ConnectPoint sourcePoint = context.inPacket().receivedFrom();
+        DeviceId deviceId = sourcePoint.deviceId();
+        OpenstackNode node = Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
+            .filter(e -> e.getState().contains(GATEWAY_CREATED))
+                 .filter(e -> deviceId.toString()
+                         .equals(e.getBridgeId(Bridge.BridgeType.INTEGRATION).toString()))
+            .findFirst().orElse(null);
+        if(node == null) {
+            return;
+        }
+
+        PortNumber portNumber = host.location().port();
+        if(portNumber == null) {
+            return;
+        }
+
+        builder.setOutput(portNumber);
+        context.block();
+        packetService.emit(new DefaultOutboundPacket(sourcePoint.deviceId(),
+                builder.build(), ByteBuffer.wrap(reply.serialize())));
+    }
     private class InnerDeviceListener implements DeviceListener {
         @Override
         public void event(DeviceEvent event) {
@@ -753,7 +776,7 @@ public class VnetManager implements VnetManagerService {
             if(ethernet.getEtherType() == Ethernet.TYPE_ARP) {
                 ARP arpPacket = (ARP) ethernet.getPayload();
                 if(arpPacket.getOpCode() == ARP.OP_REPLY) {
-                    processArp(arpPacket, sourcePoint);
+                    processArp(context, ethernet, arpPacket);
                 }
             }
        }
