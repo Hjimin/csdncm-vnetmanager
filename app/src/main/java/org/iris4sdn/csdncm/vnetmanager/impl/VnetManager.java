@@ -309,6 +309,12 @@ public class VnetManager implements VnetManagerService {
             log.info("This host is not under our control {}", host.toString());
             return;
         }
+        String ifaceId = host.annotations().value(IFACEID);
+        if (ifaceId == null) {
+            log.error("The ifaceId of Host is null");
+            return;
+        }
+
         OpenstackNode node = nodeManagerService.getOpenstackNode(deviceId);
         if (node == null) {
             // error -> warn
@@ -318,7 +324,28 @@ public class VnetManager implements VnetManagerService {
             return;
         }
 
-        VirtualPort virtualPort = configureVirtualPort(host, node, type);
+        VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
+        VirtualPort virtualPort = null;
+
+        if (type.equals(Objective.Operation.ADD)) {
+            PortNumber portNumber = host.location().port();
+            virtualPort = virtualPortService.getPort(virtualPortId);
+            if (virtualPort == null) {
+                log.error("Could not find virutal port of the host {}", host.toString());
+                return;
+            }
+            // Add virtual port information
+            TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
+            SegmentationId segmentationId = tenantNetwork.segmentationId();
+
+            node.addVirtualPort(virtualPort, portNumber, segmentationId);
+        } else if(type.equals(Objective.Operation.REMOVE)) {
+            virtualPort = node.getVirtualPort(virtualPortId);
+            if (virtualPort == null) {
+                log.error("Could not find virutal port of the host {}", host.toString());
+                return;
+            }
+        }
 
         if (virtualPort == null) {
             log.error("Could not find virutal port of the host {}", host.toString());
@@ -733,9 +760,10 @@ public class VnetManager implements VnetManagerService {
         public void event(HostEvent event) {
             Host host = event.subject();
             if (HostEvent.Type.HOST_ADDED == event.type()) {
-                eventExecutor.submit(() -> processHost(host, Objective.Operation.ADD));
+                processHost(host, Objective.Operation.ADD);
             } else if (HostEvent.Type.HOST_REMOVED == event.type()) {
-                eventExecutor.submit(() -> processHost(host, Objective.Operation.REMOVE));
+                processHost(host, Objective.Operation.REMOVE);
+//                eventExecutor.submit(() -> processHost(host, Objective.Operation.REMOVE));
             } else if (HostEvent.Type.HOST_UPDATED == event.type()) {
                 processHost(host, Objective.Operation.REMOVE);
                 processHost(host, Objective.Operation.ADD);
