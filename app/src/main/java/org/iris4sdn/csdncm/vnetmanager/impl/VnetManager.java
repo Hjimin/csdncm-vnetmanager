@@ -309,27 +309,6 @@ public class VnetManager implements VnetManagerService {
             log.info("This host is not under our control {}", host.toString());
             return;
         }
-
-        String ifaceId = null;
-        for (int i = 0; i < 30; i++) {
-            ifaceId = host.annotations().value(IFACEID);
-            if (ifaceId == null) {
-                try {
-                    // Need to wait for synchronising
-                    Thread.sleep(500);
-                } catch (InterruptedException exeption) {
-                    log.warn("Interrupted while waiting to get ifaceId");
-                    Thread.currentThread().interrupt();
-                }
-            } else  {
-                break;
-            }
-        }
-        if (ifaceId == null) {
-            log.error("The ifaceId of Host is null");
-            return;
-        }
-
         OpenstackNode node = nodeManagerService.getOpenstackNode(deviceId);
         if (node == null) {
             // error -> warn
@@ -339,28 +318,7 @@ public class VnetManager implements VnetManagerService {
             return;
         }
 
-        VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
-        VirtualPort virtualPort = null;
-
-        if (type.equals(Objective.Operation.ADD)) {
-            PortNumber portNumber = host.location().port();
-            virtualPort = virtualPortService.getPort(virtualPortId);
-            if (virtualPort == null) {
-                log.error("Could not find virutal port of the host {}", host.toString());
-                return;
-            }
-            // Add virtual port information
-            TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
-            SegmentationId segmentationId = tenantNetwork.segmentationId();
-
-            node.addVirtualPort(virtualPort, portNumber, segmentationId);
-        } else if(type.equals(Objective.Operation.REMOVE)) {
-            virtualPort = node.getVirtualPort(virtualPortId);
-            if (virtualPort == null) {
-                log.error("Could not find virutal port of the host {}", host.toString());
-                return;
-            }
-        }
+        VirtualPort virtualPort = configureVirtualPort(host, node, type);
 
         if (virtualPort == null) {
             log.error("Could not find virutal port of the host {}", host.toString());
@@ -387,12 +345,26 @@ public class VnetManager implements VnetManagerService {
 
    //configure virtual port
     private VirtualPort configureVirtualPort(Host host, OpenstackNode node, Objective.Operation type) {
-        String ifaceId = host.annotations().value(IFACEID);
+
+        String ifaceId = null;
+        for (int i = 0; i < 30; i++) {
+            ifaceId = host.annotations().value(IFACEID);
+            if (ifaceId == null) {
+                try {
+                    // Need to wait for synchronising
+                    Thread.sleep(500);
+                } catch (InterruptedException exeption) {
+                    log.warn("Interrupted while waiting to get ifaceId");
+                    Thread.currentThread().interrupt();
+                }
+            } else  {
+                break;
+            }
+        }
         if (ifaceId == null) {
             log.error("The ifaceId of Host is null");
             return null;
         }
-
         VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
 
         if (type.equals(Objective.Operation.ADD)) {
