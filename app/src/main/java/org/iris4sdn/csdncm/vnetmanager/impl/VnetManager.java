@@ -747,10 +747,10 @@ public class VnetManager implements VnetManagerService {
         public void event(HostEvent event) {
             Host host = event.subject();
             if (HostEvent.Type.HOST_ADDED == event.type()) {
-                processHost(host, Objective.Operation.ADD);
+                eventExecutor.submit(() -> processHost(host, Objective.Operation.ADD));
             } else if (HostEvent.Type.HOST_REMOVED == event.type()) {
-                processHost(host, Objective.Operation.REMOVE);
-//                eventExecutor.submit(() -> processHost(host, Objective.Operation.REMOVE));
+//                processHost(host, Objective.Operation.REMOVE);
+                eventExecutor.submit(() -> processHost(host, Objective.Operation.REMOVE));
             } else if (HostEvent.Type.HOST_UPDATED == event.type()) {
                 processHost(host, Objective.Operation.REMOVE);
                 processHost(host, Objective.Operation.ADD);
