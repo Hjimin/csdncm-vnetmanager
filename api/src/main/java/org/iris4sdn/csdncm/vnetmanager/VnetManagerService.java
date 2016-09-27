@@ -1,12 +1,12 @@
 package org.iris4sdn.csdncm.vnetmanager;
 
-import org.onosproject.net.Host;
+import org.onosproject.net.HostId;
 
 public interface VnetManagerService {
     String VNETMANAGER_APP_ID = "org.onosproject.vnetmanager";
 
-    Iterable<Host> getHosts();
-    String getId(Host host);
+    Iterable<HostId> getHosts();
+    String getId(HostId hostId);
 //
 //    void addGateway(Gateway gateway);
 //    void deleteGateway(Gateway gateway);

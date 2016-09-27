@@ -107,7 +107,7 @@ public class VnetManager implements VnetManagerService {
     private VnetPacketProcessor processor = new VnetPacketProcessor();
 
     private final Map<Host, VirtualPort> hostVirtualPortMap = new HashMap<>();
-    private final Map<Host, String> hostStore = new HashMap<>();
+    private final Map<HostId, String> hostStore = new HashMap<>();
 //    private final Map<Gateway, GroupBucket> bucketMap = new HashMap<>();
     private final GroupKey groupKey = new DefaultGroupKey("org.iris4sdn.csdncm.vnetmanager".getBytes());
 
@@ -301,13 +301,13 @@ public class VnetManager implements VnetManagerService {
 
 
     @Override
-    public Iterable<Host> getHosts() {
+    public Iterable<HostId> getHosts() {
         return Collections.unmodifiableCollection(hostStore.keySet());
     }
 
     @Override
-    public String getId(Host host) {
-        return hostStore.get(host);
+    public String getId(HostId hostId) {
+        return hostStore.get(hostId);
     }
     //detect node and install rule
     public void processHost(Host host, Objective.Operation type) {
@@ -329,19 +329,18 @@ public class VnetManager implements VnetManagerService {
 
         String ifaceid = host.annotations().value("ifaceid");
         if(ifaceid != null) {
-            hostStore.put(host, ifaceid);
+            hostStore.put(host.id(), ifaceid);
         } else {
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
                 log.info("interrupted exception while getting ifaceId");
             }
-
             ifaceid = host.annotations().value("ifaceid");
         }
 
         if(ifaceid != null) {
-            hostStore.put(host, ifaceid);
+            hostStore.put(host.id(), ifaceid);
         } else {
             log.error("Could not find ifaceId");
             return;
@@ -374,15 +373,10 @@ public class VnetManager implements VnetManagerService {
 
    //configure virtual port
     private VirtualPort configureVirtualPort(Host host, OpenstackNode node, Objective.Operation type) {
-
-        String ifaceId = hostStore.get(host);
+        String ifaceId = hostStore.get(host.id());
         if (ifaceId == null) {
             log.error("The ifaceId of Host is null");
             return null;
-        }
-
-        if(hostStore.get(host) == null && ifaceId != null) {
-            hostStore.put(host, ifaceId);
         }
 
         VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
