@@ -102,12 +102,12 @@ public class VnetManager implements VnetManagerService {
 
     private static final BridgeHandler bridgeHandler = BridgeHandler.bridgeHandler();
     private static L2RuleInstaller installer;
-    private static final String IFACEID = "ifaceid";
     private static final String OPENSTACK_NODES = "openstack-nodes";
     private static final String OVSDB_IP_KEY = "ipaddress";
     private VnetPacketProcessor processor = new VnetPacketProcessor();
 
     private final Map<Host, VirtualPort> hostVirtualPortMap = new HashMap<>();
+    private final Map<Host, String> hostStore = new HashMap<>();
 //    private final Map<Gateway, GroupBucket> bucketMap = new HashMap<>();
     private final GroupKey groupKey = new DefaultGroupKey("org.iris4sdn.csdncm.vnetmanager".getBytes());
 
@@ -300,6 +300,15 @@ public class VnetManager implements VnetManagerService {
     }
 
 
+    @Override
+    public Iterable<Host> getHosts() {
+        return Collections.unmodifiableCollection(hostStore.keySet());
+    }
+
+    @Override
+    public String getId(Host host) {
+        return hostStore.get(host);
+    }
     //detect node and install rule
     public void processHost(Host host, Objective.Operation type) {
         log.info("New host found {}", host.id());
@@ -315,6 +324,26 @@ public class VnetManager implements VnetManagerService {
             // ./init host event occur
             log.warn("Could not find Openstack node of the host {} in {} ",
                     host.toString(), deviceId);
+            return;
+        }
+
+        String ifaceid = host.annotations().value("ifaceid");
+        if(ifaceid != null) {
+            hostStore.put(host, ifaceid);
+        } else {
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                log.info("interrupted exception while getting ifaceId");
+            }
+
+            ifaceid = host.annotations().value("ifaceid");
+        }
+
+        if(ifaceid != null) {
+            hostStore.put(host, ifaceid);
+        } else {
+            log.error("Could not find ifaceId");
             return;
         }
 
@@ -346,25 +375,16 @@ public class VnetManager implements VnetManagerService {
    //configure virtual port
     private VirtualPort configureVirtualPort(Host host, OpenstackNode node, Objective.Operation type) {
 
-        String ifaceId = null;
-        for (int i = 0; i < 30; i++) {
-            ifaceId = host.annotations().value(IFACEID);
-            if (ifaceId == null) {
-                try {
-                    // Need to wait for synchronising
-                    Thread.sleep(500);
-                } catch (InterruptedException exeption) {
-                    log.warn("Interrupted while waiting to get ifaceId");
-                    Thread.currentThread().interrupt();
-                }
-            } else  {
-                break;
-            }
-        }
+        String ifaceId = hostStore.get(host);
         if (ifaceId == null) {
             log.error("The ifaceId of Host is null");
             return null;
         }
+
+        if(hostStore.get(host) == null && ifaceId != null) {
+            hostStore.put(host, ifaceId);
+        }
+
         VirtualPortId virtualPortId = VirtualPortId.portId(ifaceId);
 
         if (type.equals(Objective.Operation.ADD)) {
@@ -640,7 +660,7 @@ public class VnetManager implements VnetManagerService {
         }
 
         Host host = hosts.next();
-        String ifaceId = host.annotations().value(IFACEID);
+        String ifaceId = host.annotations().value("ifaceid");
         if (ifaceId == null) {
             return;
         }
