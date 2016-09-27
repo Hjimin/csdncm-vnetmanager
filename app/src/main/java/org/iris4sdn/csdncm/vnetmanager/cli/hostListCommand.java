@@ -1,7 +1,7 @@
 package org.iris4sdn.csdncm.vnetmanager.cli;
 
 import org.apache.karaf.shell.commands.Command;
-import org.iris4sdn.csdncm.vnetmanager.VnetManagerService;
+import org.iris4sdn.csdncm.vnetmanager.instance.InstanceManagerService;
 import org.onosproject.cli.AbstractShellCommand;
 import org.onosproject.net.HostId;
 
@@ -17,12 +17,12 @@ public class hostListCommand extends AbstractShellCommand{
 
     @Override
     protected void execute() {
-        VnetManagerService service = get(VnetManagerService.class);
-        Iterator<HostId> hosts = service.getHosts().iterator();
+        InstanceManagerService service = get(InstanceManagerService.class);
+        Iterator<HostId> hosts = service.getHostIds().iterator();
         int nodeCount = 0;
         while(hosts.hasNext()){
             HostId host = hosts.next();
-            String id = service.getId(host);
+            String id = service.getHostIfaceId(host);
             printHost(host, id);
             nodeCount++;
         }
