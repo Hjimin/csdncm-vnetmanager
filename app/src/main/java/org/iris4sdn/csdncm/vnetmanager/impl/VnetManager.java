@@ -361,6 +361,7 @@ public class VnetManager implements VnetManagerService {
         if(type.equals(Objective.Operation.REMOVE)) {
             node.removeVirtualPort(virtualPort);
             hostVirtualPortMap.remove(host);
+            hostStore.remove(host.id());
         } else if(type.equals(Objective.Operation.ADD)) {
             hostVirtualPortMap.put(host, virtualPort);
         }
