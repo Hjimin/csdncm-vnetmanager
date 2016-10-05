@@ -335,19 +335,24 @@ public class VnetManager implements VnetManagerService {
         if(ifaceid != null) {
             instanceManagerService.addInstance(host.id(), ifaceid);
         } else {
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
-                log.info("interrupted exception while getting ifaceId");
+            HostId hostId = host.id();
+            for (int i = 0; i < 20; i++) {
+                host = hostService.getHost(hostId);
+                log.error("Get host {}", host);
+                ifaceid = host.annotations().value("ifaceid");
+                if (ifaceid == null) {
+                    log.error("Trying to find ifaceId of host found {} count : {}", host.id(), i);
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException e) {
+                        log.error("interrupted exception while getting ifaceId");
+                    }
+                } else {
+                    log.error("Found {} count : {}", host.id(), i);
+                    instanceManagerService.addInstance(host.id(), ifaceid);
+                    break;
+                }
             }
-            ifaceid = host.annotations().value("ifaceid");
-        }
-
-        if(ifaceid != null) {
-            instanceManagerService.addInstance(host.id(), ifaceid);
-        } else {
-            log.error("Could not find ifaceId");
-            return;
         }
 
         VirtualPort virtualPort = configureVirtualPort(host, node, type);
