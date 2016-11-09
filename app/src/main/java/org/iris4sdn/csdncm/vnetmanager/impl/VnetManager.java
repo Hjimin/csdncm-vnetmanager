@@ -371,6 +371,13 @@ public class VnetManager implements VnetManagerService {
             node.removeVirtualPort(virtualPort);
             hostVirtualPortMap.remove(host);
             instanceManagerService.deleteInstance(host.id());
+
+//            Set<VirtualMachineId> vmIds = new HashSet<>();
+//            Iterator<VirtualMachine> vms = virtualMachineService.getVirtualMachines().iterator();
+//            while (vms.hasNext()) {
+//                vmIds.add(vms.next().id());
+//            }
+//            virtualMachineService.deleteVirtualMachine(vmIds);
         } else if(type.equals(Objective.Operation.ADD)) {
             hostVirtualPortMap.put(host, virtualPort);
         }

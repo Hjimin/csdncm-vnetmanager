@@ -26,6 +26,9 @@
             <action class="org.iris4sdn.csdncm.vnetmanager.cli.VMListCommand"/>
         </command>
         <command>
+            <action class="org.iris4sdn.csdncm.vnetmanager.cli.VMRemoveCommand"/>
+        </command>
+        <command>
             <action class="org.iris4sdn.csdncm.vnetmanager.cli.hostListCommand"/>
         </command>
     </command-bundle>
