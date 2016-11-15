@@ -687,6 +687,16 @@ public class VnetManager implements VnetManagerService {
             }
         }
 
+        Iterator<VirtualMachine> vms = virtualMachineService.getVirtualMachines().iterator();
+        while(vms.hasNext()) {
+            VirtualMachine stored_vm = vms.next();
+            if(stored_vm.ipAddress().toString().equals(senderVmIp.toString())) {
+                virtualMachineService.deleteVirtualMachine(stored_vm);
+            }
+        }
+
+
+
         VirtualMachine vm = new DefaultVirtualMachine(VirtualMachineId.virtualMachineId(senderVmMac.toString()),
                 segmentationId, senderVmIp, senderVmMac);
 
