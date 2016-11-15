@@ -10,7 +10,7 @@ public interface VirtualMachineService
     void addVirtualMachine(VirtualMachine vm);
 
     boolean deleteVirtualMachine(Iterable<VirtualMachineId> vmIds);
-
+    boolean deleteVirtualMachine(VirtualMachine vm);
     Iterable<VirtualMachine> getVirtualMachines();
 
 

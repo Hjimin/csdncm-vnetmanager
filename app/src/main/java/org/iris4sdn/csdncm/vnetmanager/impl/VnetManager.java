@@ -371,13 +371,6 @@ public class VnetManager implements VnetManagerService {
             node.removeVirtualPort(virtualPort);
             hostVirtualPortMap.remove(host);
             instanceManagerService.deleteInstance(host.id());
-
-//            Set<VirtualMachineId> vmIds = new HashSet<>();
-//            Iterator<VirtualMachine> vms = virtualMachineService.getVirtualMachines().iterator();
-//            while (vms.hasNext()) {
-//                vmIds.add(vms.next().id());
-//            }
-//            virtualMachineService.deleteVirtualMachine(vmIds);
         } else if(type.equals(Objective.Operation.ADD)) {
             hostVirtualPortMap.put(host, virtualPort);
         }
@@ -682,25 +675,15 @@ public class VnetManager implements VnetManagerService {
         TenantNetwork tenantNetwork = tenantNetworkService.getNetwork(virtualPort.networkId());
         SegmentationId segmentationId = tenantNetwork.segmentationId();
 
-//        Gateway gateway = gatewayService.getGateway(inPort);
-//        if(gateway == null) {
-//            log.error("gateway can not be null");
-//            return;
-//        }
-
-//        log.info("targetHostMac {}", targetHostMac.toString());
-//        log.info("senderVmMac {}", senderVmMac.toString());
-
-
         VirtualMachine virtualMachine = Sets.newHashSet(virtualMachineService.getVirtualMachines()).stream()
                 .filter(e -> e.ipAddress().toString().equals(senderVmIp.toString()))
                 .findFirst().orElse(null);
         MacAddress key_mac = MacAddress.valueOf("00:67:77:6b:65:79");
-        Set<VirtualMachineId> vmIds = new HashSet<>();
+
         if(virtualMachine != null) {
-            if(virtualMachine.macAddress().toString().equals(key_mac.toString())) {
-                vmIds.add(virtualMachine.id());
-                virtualMachineService.deleteVirtualMachine(vmIds);
+            if(virtualMachine.macAddress().toString().equals(key_mac.toString())
+                    || virtualMachine.ipAddress().toString().equals(senderVmIp.toString())) {
+                virtualMachineService.deleteVirtualMachine(virtualMachine);
             }
         }
 

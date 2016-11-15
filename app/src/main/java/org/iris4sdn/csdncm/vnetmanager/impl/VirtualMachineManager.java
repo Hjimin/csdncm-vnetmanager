@@ -84,6 +84,17 @@ public class VirtualMachineManager extends AbstractListenerManager<VirtualMachin
     }
 
     @Override
+    public boolean deleteVirtualMachine(VirtualMachine vm) {
+        checkNotNull(vm, VM_NOT_NULL);
+        vmStore.remove(vm.id());
+        if (vmStore.containsKey(vm.id())) {
+                log.debug("The VirtualMachine is removed failed whose identifier is {}", vm.id());
+                return false;
+        }
+        return true;
+    }
+
+    @Override
     public boolean deleteVirtualMachine(Iterable<VirtualMachineId> vmIds) {
         checkNotNull(vmIds, VM_NOT_NULL);
         for (VirtualMachineId vmId : vmIds) {
