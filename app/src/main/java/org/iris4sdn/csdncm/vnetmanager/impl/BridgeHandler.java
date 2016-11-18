@@ -68,11 +68,6 @@ public final class BridgeHandler {
 
     private static final BridgeHandler handler = new BridgeHandler();
 
-//    public enum BridgeType {
-//        INTEGRATION,
-//        EXTERNAL
-//    }
-
     private BridgeHandler() {
         ServiceDirectory serviceDirectory = new DefaultServiceDirectory();
         this.deviceService = serviceDirectory.get(DeviceService.class);
@@ -129,28 +124,6 @@ public final class BridgeHandler {
         return bridgeConfig.getPorts().stream().findFirst().orElse(null);
     }
 
-//    public void updateBridge(OpenstackNode node, Bridge.BridgeType type) {
-//        String bridgeName = null;
-//        if (type == Bridge.BridgeType.INTEGRATION) {
-//            bridgeName = INT_BRIDGE_NAME;
-//        } else if (type == Bridge.BridgeType.EXTERNAL) {
-//            bridgeName = EX_BRIDGE_NAME;
-//        }
-//
-//        DeviceId deviceId = node.getControllerId();
-//        log.info("node id {}", deviceId);
-//        DeviceId bridgeDeviceId = getBridgeId(deviceId, bridgeName);
-//        log.info("brdgeDevice id {}", bridgeDeviceId);
-//
-//        if(type == Bridge.BridgeType.INTEGRATION) {
-//            BasicDeviceConfig basicDeviceConfig = configService.getConfig(bridgeDeviceId, BasicDeviceConfig.class);
-//            log.info("basicDeviceConfig {}", basicDeviceConfig);
-//            basicDeviceConfig.managementAddress(node.getManageNetworkIp().toString());
-//            configService.applyConfig(bridgeDeviceId, BasicDeviceConfig.class, basicDeviceConfig.node());
-//        }
-//
-//    }
-
     public void createBridge(OpenstackNode node, Bridge.BridgeType type) {
         String bridgeName = null;
         if (type == Bridge.BridgeType.INTEGRATION) {
@@ -184,10 +157,7 @@ public final class BridgeHandler {
     }
 
     public void createGatewayTunnel(OpenstackNode node, Gateway gateway) {
-//        if (node.getState().contains(GATEWAY_CREATED)) {
-//            log.info("Gateway already created at {}", node.id());
-//            return ;
-//        }
+
         DeviceId deviceId = node.getOvsdbId();
         IpAddress srcIpAddress = node.getDataNetworkIp();
         IpAddress dstIpAddress = gateway.getDataNetworkIp();
@@ -217,11 +187,9 @@ public final class BridgeHandler {
         }
 
         // Save tunnel port which mapped to Openstack node otherside.
-//        node.addTunnelPortNumber(gateway.id(), port);
         node.addGatewayTunnelPortNumber(gateway.id(), port);
         gateway.setGatewayPortNumber(deviceId, port);
         gateway.setBridgeId(deviceId, Bridge.BridgeType.INTEGRATION);
-//        node.setGatewayTunnelPortNumber(port);
         node.applyState(GATEWAY_CREATED);
 
         log.info("Tunnel from " + node.getDataNetworkIp() + " to "
@@ -274,17 +242,6 @@ public final class BridgeHandler {
                 + dstNode.getDataNetworkIp() + " created");
     }
 
-//    public void destroyGatewayTunnel(Gateway srcNode, OpenstackNode dstNode, IpAddress old_ip) {
-//        tunnelManagerService.removeTunnel(dstNode.getOvsdbId(),
-//                dstNode.getDataNetworkIp(), old_ip);
-//
-//        // Remove tunnel port which mapped to Openstack node otherside.
-////        srcNode.removeTunnelPortNumber(dstNode.id());
-//        dstNode.removeGatewayTunnelPortNumber(srcNode.id());
-//
-//        log.info("Tunnel from " + srcNode.getDataNetworkIp() + " to "
-//                + old_ip + " destroyed" );
-//    }
     public void updateGatewayTunnel(Gateway gateway, OpenstackNode dstNode) {
         log.info("update old gateway tunnel");
         DeviceId dstDeviceId = dstNode.getOvsdbId();

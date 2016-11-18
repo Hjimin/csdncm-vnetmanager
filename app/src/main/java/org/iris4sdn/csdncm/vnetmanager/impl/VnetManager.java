@@ -111,7 +111,6 @@ public class VnetManager implements VnetManagerService {
     private VnetPacketProcessor processor = new VnetPacketProcessor();
 
     private final Map<Host, VirtualPort> hostVirtualPortMap = new HashMap<>();
-//    private final Map<Gateway, GroupBucket> bucketMap = new HashMap<>();
     private final GroupKey groupKey = new DefaultGroupKey("org.iris4sdn.csdncm.vnetmanager".getBytes());
 
     @Activate
@@ -212,10 +211,6 @@ public class VnetManager implements VnetManagerService {
                 .filter(e -> !e.equals(node))
                 .forEach(e -> bridgeHandler.destroyTunnel(node, e));
 
-//        //TODO : not sure if this code actully need
-//        Sets.newHashSet(gatewayService.getGateways()).stream()
-//                .forEach(e -> bridgeHandler.removeGatewayTunnelFromOvsdb(e, node));
-
         node.initState();
     }
 
@@ -301,17 +296,6 @@ public class VnetManager implements VnetManagerService {
 
         // Nothing to be processed more since OVS is gone.
     }
-
-
-//    @Override
-//    public Iterable<HostId> getHostIds() {
-//        return Collections.unmodifiableCollection(hostStore.keySet());
-//    }
-//
-//    @Override
-//    public String getHostIfaceId(HostId hostId) {
-//        return hostStore.get(hostId);
-//    }
 
     //detect node and install rule
     public void processHost(Host host, Objective.Operation type) {
@@ -545,53 +529,14 @@ public class VnetManager implements VnetManagerService {
                 .forEach(e -> installer.programTunnelIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
                         segmentationId, e, type));
 
-//        Set<PortNumber> tunnel_gateway_ports = new HashSet<>();
-//        gatewayStore.values().stream().forEach(gwport -> {
-//            tunnel_gateway_ports.add(gwport);
-//        });
-//
-
-
-//        //Jimin!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//        Sets.newHashSet(gatewayService.getGateways()).stream().forEach(gatewayPort -> {
-//            installer.programGatewayIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-//                    gatewayPort.getGatewayPortNumber(), type);
-//        });
-
         // For remote Openstack nodes (gateway included)
         Sets.newHashSet(nodeManagerService.getOpenstackNodes()).stream()
                 .filter(e -> !e.equals(node))
                 .filter(e -> e.getState().containsAll(EnumSet.of(TUNNEL_CREATED)))
                 .forEach(e -> {
-//                    tunnel_gateway_ports.add(e.getTunnelPortNumber(node.id()));
                        installer.programLocalIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
                                 segmentationId, e.getTunnelPortNumber(node.id()), mac, type);
-
-
-//                    installer.programLocalIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
-//                            segmentationId, e.getTunnelPortNumber(node.id()), mac, type);
-//                    segmentationId, tunnel_gateway_ports, mac, type);
-//                    gatewayStore.values().stream().forEach(gatewayport -> {
-//                        log.info("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-//                        installer.programLocalIn(e.getBridgeId(Bridge.BridgeType.INTEGRATION),
-//                                segmentationId, gatewayport, mac, type);
-//                    });
                 });
-//        gatewayStore.keySet().stream().forEach(gateway -> {
-//            log.info("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-//            installer.programLocalIn(gateway.getBridgeId(Bridge.BridgeType.INTEGRATION),
-//                    segmentationId, gatewayStore.get(gateway), mac, type);
-//        });
-
-        // For remote Openstack VMs beyond gateway (remote vm)
-        //TODO
-//        Sets.newHashSet(virtualMachineService.getVirtualMachines()).stream()
-//                .filter(e -> e.segmentationId().equals(segmentationId))
-//                .forEach(e -> {
-//                    installer.programLocalIn(node.getBridgeId(Bridge.BridgeType.INTEGRATION),
-//                            segmentationId, node.getGatewayTunnelPortNumber(),
-//                            e.macAddress(), type);
-//                });
     }
 
     private void installUnicastOutRule(OpenstackNode node, VirtualPort port,
@@ -789,13 +734,10 @@ public class VnetManager implements VnetManagerService {
             checkNotNull(event, EVENT_NOT_NULL);
             Gateway gateway = event.subject();
             if (GatewayEvent.Type.GATEWAY_PUT == event.type()) {
-//                processGateway(gateway, Objective.Operation.ADD);
                 eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD));
             } else if (GatewayEvent.Type.GATEWAY_REMOVE == event.type()) {
-//                processGateway(gateway, Objective.Operation.REMOVE);
                 eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.REMOVE));
             } else if (GatewayEvent.Type.GATEWAY_UPDATE == event.type()) {
-//                processGateway(gateway, Objective.Operation.ADD_TO_EXISTING);
                 eventExecutor.submit(() -> processGateway(gateway, Objective.Operation.ADD_TO_EXISTING));
             }
         }

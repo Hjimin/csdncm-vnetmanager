@@ -37,7 +37,6 @@ public class InstanceManager extends AbstractListenerManager<InstanceEvent, Inst
 
     private EventuallyConsistentMapListener<HostId, String> instanceListener =
             new InnerInstanceListener();
-//    private GatewayListener gatewayListener = new InnerGatewayListener();
 
     @Activate
     public void activate() {

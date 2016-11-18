@@ -22,7 +22,6 @@ public class Gateway {
     private MacAddress macAddress;
     private short weight;
     private IpAddress dataNetworkIp;
-//    private PortNumber gatewayPortNumber;
     private final Map<DeviceId, PortNumber> gatewayPortNumbers  = new HashMap<>();
     private final String nodeId;
     private String activate;

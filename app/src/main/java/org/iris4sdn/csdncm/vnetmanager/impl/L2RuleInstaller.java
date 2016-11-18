@@ -163,7 +163,6 @@ public class L2RuleInstaller {
 
         TrafficTreatment treatment = DefaultTrafficTreatment.builder()
                 .punt().build();
-//                .setOutput(outPort).build();
 
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment).withSelector(selector)
@@ -370,27 +369,6 @@ public class L2RuleInstaller {
         }
     }
 
-//    public void programTunnelIn(DeviceId deviceId, SegmentationId segmentationId,
-//                                 PortNumber inPort, Objective.Operation type) {
-//        log.info("Program flow toward local VMs from tunnel ports");
-//
-//        TrafficSelector selector = DefaultTrafficSelector.builder()
-//                .matchInPort(inPort).add(Criteria.matchTunnelId(Long
-//                        .parseLong(segmentationId.toString())))
-//                .build();
-//
-//        TrafficTreatment treatment = DefaultTrafficTreatment.builder().build();
-//
-//        ForwardingObjective.Builder objective = DefaultForwardingObjective
-//                .builder().withTreatment(treatment).withSelector(selector)
-//                .fromApp(appId).makePermanent().withFlag(ForwardingObjective.Flag.SPECIFIC)
-//                .withPriority(L2_CLASSIFIER_PRIORITY);
-//        if (type.equals(Objective.Operation.ADD)) {
-//            flowObjectiveService.forward(deviceId, objective.add());
-//        } else {
-//            flowObjectiveService.forward(deviceId, objective.remove());
-//        }
-//    }
 
     public void programTunnelIn(DeviceId deviceId, SegmentationId segmentationId,
                                 PortNumber inPort, Objective.Operation type) {
@@ -406,7 +384,6 @@ public class L2RuleInstaller {
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment).withSelector(selector)
                 .fromApp(appId).makePermanent().withFlag(ForwardingObjective.Flag.SPECIFIC)
-//                .withPriority(49999);
                 .withPriority(L2_CLASSIFIER_PRIORITY);
 
         if (type.equals(Objective.Operation.ADD)) {
@@ -476,16 +453,13 @@ public class L2RuleInstaller {
 
         TrafficTreatment.Builder treatment = DefaultTrafficTreatment.builder();
         for (PortNumber outPort : outPorts) {
-//            if (inPort != outPort) {
                 treatment.setOutput(outPort);
-//            }
         }
 
 
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment.build())
                 .withSelector(selector).fromApp(appId).makePermanent()
-                //.withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(L2_CLASSIFIER_PRIORITY);
                 .withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(49000);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());
@@ -507,9 +481,7 @@ public class L2RuleInstaller {
 
         TrafficTreatment.Builder treatment = DefaultTrafficTreatment.builder();
         for (PortNumber outPort : outPorts) {
-//            if (inPort != outPort) {
                 treatment.setOutput(outPort);
-//            }
         }
         treatment.group(new DefaultGroupId(1));
 
@@ -517,7 +489,6 @@ public class L2RuleInstaller {
         ForwardingObjective.Builder objective = DefaultForwardingObjective
                 .builder().withTreatment(treatment.build())
                 .withSelector(selector).fromApp(appId).makePermanent()
-                //.withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(L2_CLASSIFIER_PRIORITY);
                 .withFlag(ForwardingObjective.Flag.SPECIFIC).withPriority(49000);
         if (type.equals(Objective.Operation.ADD)) {
             flowObjectiveService.forward(deviceId, objective.add());

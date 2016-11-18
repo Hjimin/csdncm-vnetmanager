@@ -108,16 +108,6 @@ public class OpenstackNode {
         this.dataNetworkIp = checkNotNull(dataNetworkIp);
         this.tunnelType = checkNotNull(tunnelType);
         this.nodeType = checkNotNull(nodeType);
-
-//        controllerId = null;
-////        exBridgeId = null;
-////        intBridgeId = null;
-////        currentState.clear();
-//        virtualPorts.clear();
-//        virtualPortNumbers.clear();
-//        segmentationIds.clear();
-//        tunnelPortNumbers.clear();
-//        tenantVirtualPorts.clear();
     }
 
     public OpenstackNodeId id() { return nodeId; }

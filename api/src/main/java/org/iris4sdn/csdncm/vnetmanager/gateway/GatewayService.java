@@ -10,7 +10,6 @@ public interface GatewayService extends ListenerService<GatewayEvent,GatewayList
 
     Iterable<Gateway> getGateways();
     void addGatewayList(List<Gateway> gatewayList);
-//    Gateway getGateway(PortNumber inPort);
     void createGateway(String id, String name, MacAddress macAddress, IpAddress dataNetworkIp,
                               short weight, String state, boolean updated);
 }
