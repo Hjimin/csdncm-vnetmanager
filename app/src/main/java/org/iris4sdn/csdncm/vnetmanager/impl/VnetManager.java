@@ -602,6 +602,10 @@ public class VnetManager implements VnetManagerService {
         MacAddress senderVmMac = MacAddress.valueOf(arpPacket.getSenderHardwareAddress());
         Ip4Address senderVmIp = Ip4Address.valueOf(arpPacket.getSenderProtocolAddress());
 
+        Iterator<Host> my_hosts = hostService.getHostsByIp(senderVmIp).iterator();
+        if(my_hosts.hasNext())
+            return;
+        
         //check packet if they have right dst mac
         Iterator<Host> hosts = hostService.getHostsByMac(targetHostMac).iterator();
         if(!hosts.hasNext()) {
