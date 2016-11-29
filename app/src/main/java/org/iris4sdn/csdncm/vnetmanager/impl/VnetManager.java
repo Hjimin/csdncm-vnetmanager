@@ -603,28 +603,20 @@ public class VnetManager implements VnetManagerService {
         Ip4Address senderVmIp = Ip4Address.valueOf(arpPacket.getSenderProtocolAddress());
 
         Iterator<HostId> hostIds = instanceManagerService.getHostIds().iterator();
-        try {
-            while(hostIds.hasNext()) {
-                Host host = hostService.getHost(hostIds.next());
-                if(host == null)
-                    continue;
+        while(hostIds.hasNext()) {
+            Host host = hostService.getHost(hostIds.next());
+            if(host == null)
+                continue;
 
-                IpAddress ip = Sets.newHashSet(host.ipAddresses()).stream()
-                        .findFirst().orElse(null);
-                if(ip == null)
-                    continue;
+            IpAddress ip = Sets.newHashSet(host.ipAddresses()).stream()
+                    .findFirst().orElse(null);
+            if(ip == null)
+                continue;
 
-                if (ip.toString().equals(senderVmIp.toString()))
-                    return;
-            }
-        } catch (Exception e) {
-            log.error(e.toString());
+            if (ip.toString().equals(senderVmIp.toString()))
+                return;
         }
 
-        Iterator<Host> my_hosts = hostService.getHostsByIp(senderVmIp).iterator();
-        if(my_hosts.hasNext())
-            return;
-        
         //check packet if they have right dst mac
         Iterator<Host> hosts = hostService.getHostsByMac(targetHostMac).iterator();
         if(!hosts.hasNext()) {
@@ -632,7 +624,7 @@ public class VnetManager implements VnetManagerService {
         }
 
         Host host = hosts.next();
-        String ifaceId = host.annotations().value("ifaceid");
+        String ifaceId = instanceManagerService.getHostIfaceId(host.id());
         if (ifaceId == null) {
             return;
         }
