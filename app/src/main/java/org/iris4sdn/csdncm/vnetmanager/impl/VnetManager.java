@@ -602,6 +602,25 @@ public class VnetManager implements VnetManagerService {
         MacAddress senderVmMac = MacAddress.valueOf(arpPacket.getSenderHardwareAddress());
         Ip4Address senderVmIp = Ip4Address.valueOf(arpPacket.getSenderProtocolAddress());
 
+        Iterator<HostId> hostIds = instanceManagerService.getHostIds().iterator();
+        try {
+            while(hostIds.hasNext()) {
+                Host host = hostService.getHost(hostIds.next());
+                if(host == null)
+                    continue;
+
+                IpAddress ip = Sets.newHashSet(host.ipAddresses()).stream()
+                        .findFirst().orElse(null);
+                if(ip == null)
+                    continue;
+
+                if (ip.toString().equals(senderVmIp.toString()))
+                    return;
+            }
+        } catch (Exception e) {
+            log.error(e.toString());
+        }
+
         Iterator<Host> my_hosts = hostService.getHostsByIp(senderVmIp).iterator();
         if(my_hosts.hasNext())
             return;
